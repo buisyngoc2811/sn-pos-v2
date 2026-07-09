@@ -1,0 +1,458 @@
+.customers-page {
+  display: grid;
+  max-width: 1600px;
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.customer-count {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  background: var(--card);
+  font-size: 10px;
+  font-weight: 580;
+}
+
+.customer-count svg {
+  width: 13px;
+  height: 13px;
+}
+
+.customers-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.customers-stats > div {
+  display: grid;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow-xs);
+}
+
+.customers-stats span,
+.customers-stats small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.customers-stats strong {
+  margin: 2px 0;
+  color: var(--foreground);
+  font-size: 19px;
+  font-weight: 670;
+  letter-spacing: -0.035em;
+}
+
+.customers-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--surface-shadow);
+}
+
+.customers-table-wrap {
+  overflow-x: auto;
+}
+
+.customers-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.customers-table th {
+  height: 38px;
+  padding: 0 13px;
+  background: color-mix(in srgb, var(--muted) 60%, var(--card));
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.customers-table td {
+  height: 62px;
+  padding: 6px 13px;
+  border-top: 1px solid var(--border);
+}
+
+.customers-table tbody tr {
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.customers-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.customers-table td > strong,
+.customer-cell strong {
+  display: block;
+  color: var(--foreground);
+  font-weight: 610;
+}
+
+.customers-table td > small,
+.customer-cell small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.customer-cell {
+  display: flex;
+  min-width: 180px;
+  align-items: center;
+  gap: 10px;
+}
+
+.customer-cell > span,
+.customer-profile-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: 700;
+}
+
+.customer-cell > span {
+  width: 36px;
+  height: 36px;
+  font-size: 9px;
+}
+
+.customer-tier {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  font-size: 9px;
+  font-weight: 630;
+}
+
+.customer-tier.rose {
+  color: var(--accent-foreground);
+  background: var(--accent);
+}
+
+.customer-tier.vip {
+  color: #7b5b12;
+  background: #faf2d9;
+}
+
+.dark .customer-tier.vip {
+  color: #e8cc78;
+  background: #3c321c;
+}
+
+.customers-table td:last-child {
+  text-align: right;
+}
+
+.customers-table td:last-child button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.customers-table td:last-child button:hover {
+  color: var(--accent-foreground);
+  background: var(--accent);
+}
+
+.customers-table td:last-child svg {
+  width: 14px;
+  height: 14px;
+}
+
+.customer-profile-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.customer-profile-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 11px;
+}
+
+.customer-profile-card > div:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.customer-profile-card strong {
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.customer-profile-card > div span {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.customer-contact-card {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.customer-contact-card a,
+.customer-contact-card > div {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.customer-contact-card > div:last-child {
+  border-bottom: 0;
+}
+
+.customer-contact-card svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-foreground);
+}
+
+.customer-contact-card span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.customer-contact-card small {
+  color: var(--muted-foreground);
+  font-size: 8.5px;
+}
+
+.customer-contact-card strong {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 590;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customer-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--border);
+  gap: 1px;
+}
+
+.customer-metrics div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 11px;
+  background: var(--card);
+}
+
+.customer-metrics span {
+  color: var(--muted-foreground);
+  font-size: 8.5px;
+}
+
+.customer-metrics strong {
+  margin-top: 3px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 660;
+}
+
+.loyalty-card {
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 45%, var(--card));
+}
+
+.loyalty-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.loyalty-card header > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.loyalty-card header svg {
+  width: 17px;
+  height: 17px;
+  color: var(--primary);
+}
+
+.loyalty-card header span {
+  display: flex;
+  flex-direction: column;
+}
+
+.loyalty-card strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.loyalty-card small,
+.loyalty-card p {
+  color: var(--muted-foreground);
+  font-size: 8.5px;
+}
+
+.loyalty-card b {
+  color: var(--accent-foreground);
+  font-size: 10px;
+}
+
+.loyalty-progress {
+  display: block;
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.loyalty-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.loyalty-card p {
+  margin: 6px 0 0;
+}
+
+.purchase-history {
+  margin: 0;
+  padding: 0 13px;
+  list-style: none;
+}
+
+.purchase-history li {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.purchase-history li:last-child {
+  border-bottom: 0;
+}
+
+.purchase-history li span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.purchase-history strong,
+.purchase-history b {
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 620;
+}
+
+.purchase-history small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 8.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .customers-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .customers-table th:nth-child(2),
+  .customers-table td:nth-child(2),
+  .customers-table th:nth-child(3),
+  .customers-table td:nth-child(3),
+  .customers-table th:nth-child(6),
+  .customers-table td:nth-child(6) {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .customers-page {
+    gap: 14px;
+  }
+
+  .customers-stats {
+    gap: 8px;
+  }
+
+  .customers-stats > div {
+    padding: 12px;
+  }
+
+  .customers-table th,
+  .customers-table td {
+    padding-inline: 10px;
+  }
+
+  .customers-table th:nth-child(4),
+  .customers-table td:nth-child(4) {
+    display: none;
+  }
+
+  .customer-drawer {
+    width: 100%;
+  }
+}
