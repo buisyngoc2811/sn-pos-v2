@@ -117,14 +117,22 @@ export function CustomersPage() {
   if (error) throw error
   if (loading) return <PageSkeleton />
 
+  const totalCustomers = customers.length
+  const returningCustomers = customers.filter((c) => c.orders > 1).length
+  const returnRate = totalCustomers ? Math.round((returningCustomers / totalCustomers) * 100) : 0
+  const purchasingCustomers = customers.filter((c) => c.orders > 0).length
+  const totalSpent = customers.reduce((acc, c) => acc + c.spent, 0)
+  const avgSpent = purchasingCustomers ? Math.round(totalSpent / purchasingCustomers) : 0
+  const totalPoints = customers.reduce((acc, c) => acc + c.points, 0)
+
   return (
     <div className="customers-page">
       <PageIntro kicker="Danh sách khách hàng" title="Khách hàng" description="Xem lịch sử mua hàng và điểm thành viên." action={<span className="customer-count"><UserRound /> {customers.length} khách hàng</span>} />
       <section className="customers-stats">
-        <div><span>Tổng khách hàng</span><strong>{customers.length}</strong><small>Tài khoản thành viên</small></div>
-        <div><span>Khách quay lại</span><strong>{customers.length ? Math.round((customers.filter((c) => c.orders > 1).length / customers.length) * 100) : 0}%</strong><small>Đã mua hàng nhiều hơn một lần</small></div>
-        <div><span>Chi tiêu trung bình</span><strong>{formatVnd(customers.length ? Math.round(customers.reduce((acc, c) => acc + c.spent, 0) / customers.length) : 0)}</strong><small>Mỗi khách hàng</small></div>
-        <div><span>Điểm thành viên</span><strong>{formatNumber(customers.reduce((acc, c) => acc + c.points, 0))}</strong><small>Hiện có thể sử dụng</small></div>
+        <div><span>Tổng khách hàng</span><strong>{totalCustomers}</strong><small>Tài khoản thành viên</small></div>
+        <div><span>Khách quay lại</span><strong>{returnRate}%</strong><small>Đã mua hàng nhiều hơn một lần</small></div>
+        <div><span>Chi tiêu trung bình</span><strong>{formatVnd(avgSpent)}</strong><small>Mỗi khách hàng</small></div>
+        <div><span>Điểm thành viên</span><strong>{formatNumber(totalPoints)}</strong><small>Hiện có thể sử dụng</small></div>
       </section>
       <section className="customers-panel">
         <header className="products-toolbar">
