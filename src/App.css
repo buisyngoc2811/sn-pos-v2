@@ -372,8 +372,8 @@ button {
 .skip-link {
   position: fixed;
   z-index: 100;
-  top: 8px;
-  left: 8px;
+  top: calc(8px + env(safe-area-inset-top));
+  left: calc(8px + env(safe-area-inset-left));
   padding: 8px 12px;
   border-radius: 8px;
   color: var(--primary-foreground);
@@ -400,6 +400,9 @@ button {
     radial-gradient(circle at 12% 2%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 23%),
     var(--sidebar);
   color: var(--sidebar-foreground);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
 }
 
 .brand {
@@ -580,7 +583,7 @@ button {
 .header {
   position: sticky;
   z-index: 10;
-  top: 0;
+  top: env(safe-area-inset-top);
   display: flex;
   height: 64px;
   align-items: center;
