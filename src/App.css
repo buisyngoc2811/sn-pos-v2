@@ -370,22 +370,34 @@ button {
 }
 
 .skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link:focus-visible {
   position: fixed;
   z-index: 100;
   top: calc(8px + env(safe-area-inset-top));
   left: calc(8px + env(safe-area-inset-left));
+  width: auto;
+  height: auto;
   padding: 8px 12px;
-  border-radius: 8px;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
   color: var(--primary-foreground);
   background: var(--primary);
   font-size: 13px;
   font-weight: 600;
-  transform: translateY(-150%);
-  transition: transform 150ms ease;
-}
-
-.skip-link:focus {
-  transform: translateY(0);
+  border-radius: 8px;
 }
 
 .sidebar {
@@ -583,13 +595,13 @@ button {
 .header {
   position: sticky;
   z-index: 10;
-  top: env(safe-area-inset-top);
+  top: 0;
   display: flex;
-  height: 64px;
+  min-height: calc(64px + env(safe-area-inset-top));
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 22px;
+  padding: env(safe-area-inset-top) 22px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   background: color-mix(in srgb, var(--card) 88%, transparent);
   box-shadow: 0 4px 18px -14px rgb(68 38 50 / 0.24);
