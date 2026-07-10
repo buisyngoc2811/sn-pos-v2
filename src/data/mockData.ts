@@ -22,6 +22,8 @@ export type Product = {
   price: number
   status: ProductStatus
   position: string
+  short_description?: string | null
+  description?: string | null
 }
 
 export const products: Product[] = [
@@ -48,6 +50,8 @@ export type PosProduct = {
   stock: number
   price: number
   position: string
+  short_description?: string | null
+  description?: string | null
 }
 
 export type PosCartItem = PosProduct & { quantity: number }
@@ -115,7 +119,7 @@ export type Order = {
   date: string
   time: string
   items: number
-  payment: 'Thẻ' | 'Tiền mặt'
+  payment: 'Thẻ' | 'Tiền mặt' | 'Chuyển khoản / QR'
   status: OrderStatus
   total: number
 }

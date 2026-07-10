@@ -17,6 +17,11 @@ export function OverlayBackdrop({
   dismissOnEscape = true,
 }: OverlayBackdropProps) {
   const backdropRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
@@ -29,7 +34,7 @@ export function OverlayBackdrop({
 
     const handleKeyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && dismissOnEscape) {
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -56,7 +61,7 @@ export function OverlayBackdrop({
       window.removeEventListener('keydown', handleKeyboard)
       previouslyFocused?.focus()
     }
-  }, [dismissOnEscape, onClose])
+  }, [dismissOnEscape])
 
   return (
     <div

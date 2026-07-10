@@ -30,6 +30,12 @@ export type CustomerInput = {
   membership_tier?: 'member' | 'pink' | 'vip'
 }
 
+export type PosCustomer = {
+  id: string
+  name: string
+  phone: string
+}
+
 type CustomerRow = {
   id: string
   name: string
@@ -96,6 +102,33 @@ export const CustomerService = {
       if (error) handleServiceError(error)
       if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ máy chủ')
       return data
+    } catch (e) {
+      handleServiceError(e)
+    }
+  },
+
+  async searchForPos(query: string): Promise<PosCustomer[]> {
+    const normalized = query.trim()
+
+    try {
+      let request = supabase
+        .from('customers')
+        .select('id, name, phone')
+        .order('created_at', { ascending: false })
+        .limit(8)
+
+      if (normalized) {
+        request = request.or(`name.ilike.%${normalized}%,phone.ilike.%${normalized}%`)
+      }
+
+      const { data, error } = await request
+
+      if (error) handleServiceError(error)
+      return ((data ?? []) as Array<{ id: string; name: string; phone: string | null }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone ?? '',
+      }))
     } catch (e) {
       handleServiceError(e)
     }

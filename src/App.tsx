@@ -20,6 +20,7 @@ import { PageErrorBoundary, PageSkeleton } from './components/PageStates'
 import './App.css'
 import { useAuth } from './contexts/AuthContext'
 import { LoginPage } from './LoginPage'
+import { SettingsService, type StoreSettings } from './services/SettingsService'
 
 type PagePath = 'dashboard' | 'sales' | 'products' | 'inventory' | 'orders' | 'customers' | 'reports' | 'settings'
 
@@ -55,17 +56,31 @@ function getPageFromLocation(): PagePath {
   return path in pages ? path as PagePath : 'dashboard'
 }
 
+function getStoreInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'SN'
+}
+
 function App() {
   const { session, signOut } = useAuth()
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
   const [isDark, setIsDark] = useState(true)
   const [currentPage, setCurrentPage] = useState<PagePath>(getPageFromLocation)
+  const [settings, setSettings] = useState<StoreSettings | null>(null)
   const mainRef = useRef<HTMLElement>(null)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const navigationCloseRef = useRef<HTMLButtonElement>(null)
   const currentNavigation = primaryNavigation.find((item) => item.path === currentPage)!
   const CurrentPage = pages[currentPage]
   const hasPageSearch = ['sales', 'products', 'inventory', 'orders', 'customers'].includes(currentPage)
+  const storeName = settings?.store_name?.trim() || 'SN Store'
+  const storeLogoUrl = settings?.store_logo_path ? SettingsService.getStoreAssetUrl(settings.store_logo_path) : ''
+  const storeInitials = getStoreInitials(storeName)
 
   useEffect(() => {
     if (window.location.pathname === '/' || !(window.location.pathname.slice(1) in pages)) {
@@ -80,6 +95,13 @@ function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
+
+  useEffect(() => {
+    if (!session) return
+    SettingsService.getSettings()
+      .then(setSettings)
+      .catch(() => setSettings(null))
+  }, [session])
 
   useEffect(() => {
     if (!isNavigationOpen) return
@@ -151,10 +173,10 @@ function App() {
       >
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">
-            SN
+            {storeLogoUrl ? <img src={storeLogoUrl} alt="" /> : storeInitials}
           </div>
           <div className="brand-copy">
-            <strong>SN Store</strong>
+            <strong>{storeName}</strong>
             <span>Điểm bán hàng</span>
           </div>
           <button
@@ -248,10 +270,10 @@ function App() {
             </button>
             <button className="profile-button" type="button" aria-label="Đăng xuất" onClick={signOut}>
               <span className="profile-avatar" aria-hidden="true">
-                SN
+                {storeLogoUrl ? <img src={storeLogoUrl} alt="" /> : storeInitials}
               </span>
               <span className="profile-copy">
-                <strong>SN Store</strong>
+                <strong>{storeName}</strong>
                 <small>Đăng xuất</small>
               </span>
               <ChevronDown aria-hidden="true" />

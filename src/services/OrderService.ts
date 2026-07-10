@@ -1,9 +1,10 @@
 import { supabase, handleServiceError } from '../utils/supabase'
 
 export type OrderStatus = 'Hoàn tất' | 'Đã hoàn tiền' | 'Tạm giữ'
-export type OrderPayment = 'Thẻ' | 'Tiền mặt'
+export type OrderPayment = 'Thẻ' | 'Tiền mặt' | 'Chuyển khoản / QR'
 
 export type OrderLineItem = {
+  id: string
   name: string
   detail: string
   quantity: number
@@ -19,6 +20,9 @@ export type Order = {
   items: number
   payment: OrderPayment
   status: OrderStatus
+  subtotal: number
+  discount: number
+  tax: number
   total: number
   lineItems: OrderLineItem[]
 }
@@ -27,7 +31,10 @@ type OrderRow = {
   id: string
   order_number: string
   status: 'completed' | 'held' | 'refunded'
-  payment_method: 'cash' | 'card'
+  payment_method: 'cash' | 'card' | 'bank_transfer_qr'
+  subtotal_vnd: number
+  discount_vnd: number
+  tax_vnd: number
   total_vnd: number
   completed_at: string | null
   created_at: string
@@ -36,6 +43,7 @@ type OrderRow = {
     email: string | null
   } | null
   order_items: Array<{
+    id: string
     quantity: number
     unit_price_vnd: number
     product_name_snapshot: string
@@ -53,6 +61,7 @@ const statusToVietnamese: Record<OrderRow['status'], OrderStatus> = {
 const paymentToVietnamese: Record<OrderRow['payment_method'], OrderPayment> = {
   cash: 'Tiền mặt',
   card: 'Thẻ',
+  bank_transfer_qr: 'Chuyển khoản / QR',
 }
 
 function getDateParts(value: string) {
@@ -73,7 +82,7 @@ export const OrderService = {
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select('id, order_number, status, payment_method, total_vnd, completed_at, created_at, customers(name, email), order_items(quantity, unit_price_vnd, product_name_snapshot, variant_snapshot, sku_snapshot)')
+        .select('id, order_number, status, payment_method, subtotal_vnd, discount_vnd, tax_vnd, total_vnd, completed_at, created_at, customers(name, email), order_items(id, quantity, unit_price_vnd, product_name_snapshot, variant_snapshot, sku_snapshot)')
         .order('completed_at', { ascending: false })
 
       if (error) handleServiceError(error)
@@ -82,6 +91,7 @@ export const OrderService = {
         const completedAt = row.completed_at ?? row.created_at
         const { date, time } = getDateParts(completedAt)
         const lineItems = row.order_items.map((item) => ({
+          id: item.id,
           name: item.product_name_snapshot,
           detail: item.variant_snapshot ?? item.sku_snapshot,
           quantity: item.quantity,
@@ -97,6 +107,9 @@ export const OrderService = {
           items: row.order_items.reduce((total, item) => total + item.quantity, 0),
           payment: paymentToVietnamese[row.payment_method],
           status: statusToVietnamese[row.status],
+          subtotal: row.subtotal_vnd,
+          discount: row.discount_vnd,
+          tax: row.tax_vnd,
           total: row.total_vnd,
           lineItems,
         }

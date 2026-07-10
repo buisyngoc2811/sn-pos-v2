@@ -1,4 +1,5 @@
 import { supabase, handleServiceError } from '../utils/supabase'
+import { getStoragePublicUrl, STORAGE_BUCKETS } from './storageBuckets'
 
 export type InventoryItem = {
   id: string
@@ -10,9 +11,11 @@ export type InventoryItem = {
   reorder: number
   value: number
   position: string
+  imagePath?: string
 }
 
 export type InventoryMovement = {
+  id: string
   product: string
   detail: string
   amount: number
@@ -30,6 +33,7 @@ type InventoryRow = {
   reorder_level: number
   products: {
     name: string
+    image_path: string | null
     categories: {
       name: string
     } | null
@@ -37,6 +41,7 @@ type InventoryRow = {
 }
 
 type MovementRow = {
+  id: string
   quantity_change: number
   created_at: string
   note: string | null
@@ -70,7 +75,7 @@ export const InventoryService = {
     try {
       const { data, error } = await supabase
         .from('product_variants')
-        .select('id, sku, size, color, price_vnd, stock_quantity, reorder_level, products(name, categories(name))')
+        .select('id, sku, size, color, price_vnd, stock_quantity, reorder_level, products(name, image_path, categories(name))')
         .order('created_at')
 
       if (error) handleServiceError(error)
@@ -85,6 +90,7 @@ export const InventoryService = {
         reorder: row.reorder_level,
         value: row.price_vnd * row.stock_quantity,
         position: positions[index % positions.length],
+        imagePath: getStoragePublicUrl(row.products?.image_path, STORAGE_BUCKETS.products),
       }))
     } catch (e) {
       handleServiceError(e)
@@ -110,7 +116,7 @@ export const InventoryService = {
     try {
       const { data, error } = await supabase
         .from('inventory_movements')
-        .select('quantity_change, created_at, note, product_variants(size, color, products(name))')
+        .select('id, quantity_change, created_at, note, product_variants(size, color, products(name))')
         .order('created_at', { ascending: false })
         .limit(5)
 
@@ -121,6 +127,7 @@ export const InventoryService = {
         const variantLabel = buildVariantLabel(row.product_variants?.color ?? null, row.product_variants?.size ?? null, productName)
 
         return {
+          id: row.id,
           product: productName,
           detail: row.note ?? (variantLabel || 'Cập nhật tồn kho'),
           amount: row.quantity_change,

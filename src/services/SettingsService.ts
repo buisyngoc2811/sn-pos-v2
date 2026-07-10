@@ -1,25 +1,35 @@
 import { supabase, handleServiceError } from '../utils/supabase'
+import { getStoragePublicUrl, STORAGE_BUCKETS } from './storageBuckets'
 
 export type StoreSettings = {
   id: string
   store_name: string
+  store_logo_path: string
   timezone: string
   currency: string
   tax_rate: number
+  bank_name: string
+  bank_account_number: string
+  bank_account_holder: string
+  bank_qr_image_path: string
+  transfer_note_prefix: string
 }
 
 export const SettingsService = {
-  async getSettings(): Promise<StoreSettings> {
+  getStoreAssetUrl(path: string): string {
+    return getStoragePublicUrl(path, STORAGE_BUCKETS.storeAssets) ?? ''
+  },
+
+  async getSettings(): Promise<StoreSettings | null> {
     try {
       const { data, error } = await supabase
         .from('store_settings')
         .select('*')
         .limit(1)
-        .single()
+        .maybeSingle()
 
       if (error) handleServiceError(error)
-      if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ máy chủ')
-      return data as StoreSettings
+      return data as StoreSettings | null
     } catch (e) {
       handleServiceError(e)
     }

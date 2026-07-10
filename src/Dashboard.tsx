@@ -7,30 +7,94 @@ import {
   CreditCard,
   TrendingUp,
 } from 'lucide-react'
-import productSheet from './assets/boutique-products.webp'
 import { DashboardService } from './services/DashboardService'
-import { formatDate, formatNumber, formatTime, formatVnd } from './utils/formatters'
+import { SettingsService, type StoreSettings } from './services/SettingsService'
+import { formatNumber, formatTime, formatVnd } from './utils/formatters'
+
+function getGreetingHour(date: Date, timeZone?: string) {
+  if (!timeZone) return date.getHours()
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone,
+    }).formatToParts(date)
+    const hour = parts.find((part) => part.type === 'hour')?.value
+    return hour ? Number(hour) : date.getHours()
+  } catch {
+    return date.getHours()
+  }
+}
+
+function formatDashboardDate(date: Date, timeZone?: string) {
+  try {
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone,
+    }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date)
+  }
+}
+
+function getGreeting(hour: number) {
+  if (hour >= 5 && hour <= 10) return 'Chào buổi sáng'
+  if (hour >= 11 && hour <= 12) return 'Chào buổi trưa'
+  if (hour >= 13 && hour <= 17) return 'Chào buổi chiều'
+  return 'Chào buổi tối'
+}
 
 export function Dashboard() {
   const [data, setData] = useState<Awaited<ReturnType<typeof DashboardService.getDashboardData>> | null>(null)
+  const [settings, setSettings] = useState<StoreSettings | null>(null)
+  const [now, setNow] = useState(() => new Date())
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    DashboardService.getDashboardData().then(setData).catch(setError)
+    let active = true
+    Promise.all([
+      DashboardService.getDashboardData(),
+      SettingsService.getSettings().catch(() => null),
+    ])
+      .then(([dashboardData, storeSettings]) => {
+        if (!active) return
+        setData(dashboardData)
+        setSettings(storeSettings)
+      })
+      .catch(setError)
+
+    const timer = window.setInterval(() => {
+      setNow(new Date())
+    }, 60_000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
   }, [])
 
   if (error) throw error
   if (!data) return <PageSkeleton />
 
-  const { activities, bestSellers, chartPoints, kpis, lowInventory, orders, quickActions } = data
+  const { activities, bestSellers, chartPoints, kpis, lowInventory, orders, paymentSummary, quickActions, todaySummary } = data
+  const greetingHour = getGreetingHour(now, settings?.timezone?.trim() || undefined)
+  const greeting = getGreeting(greetingHour)
+  const storeName = settings?.store_name?.trim() || 'SN Store'
   const chartArea = `M ${chartPoints.replaceAll(' ', ' L ')} L 292,126 L 4,126 Z`
 
   return (
     <div className="dashboard">
       <section className="dashboard-intro" aria-labelledby="dashboard-title">
         <div>
-          <p className="dashboard-kicker">Ngày {formatDate('2026-07-09')}</p>
-          <h2 id="dashboard-title">Chào buổi sáng, SN Store</h2>
+          <p className="dashboard-kicker">Ngày {formatDashboardDate(now, settings?.timezone?.trim() || undefined)}</p>
+          <h2 id="dashboard-title">{greeting}, {storeName}</h2>
           <p>Tình hình cửa hàng hôm nay.</p>
         </div>
         <div className="trading-status">
@@ -68,9 +132,9 @@ export function Dashboard() {
               <p>7 ngày gần nhất</p>
             </div>
             <div className="revenue-periods">
-              <div><span>Theo tuần</span><strong>{formatVnd(78420000)}</strong></div>
-              <div><span>Theo tháng</span><strong>{formatVnd(314200000)}</strong></div>
-              <span className="revenue-change"><TrendingUp aria-hidden="true" /> 8,2%</span>
+              <div><span>Theo tuần</span><strong>{formatVnd(todaySummary.weekRevenue)}</strong></div>
+              <div><span>Theo tháng</span><strong>{formatVnd(todaySummary.monthRevenue)}</strong></div>
+              <span className="revenue-change"><TrendingUp aria-hidden="true" /> Live</span>
             </div>
           </header>
           <div className="chart-wrap">
@@ -114,27 +178,24 @@ export function Dashboard() {
               <h3>Doanh thu hôm nay</h3>
               <p>Tổng hợp thanh toán</p>
             </div>
-            <span className="summary-badge">24 đơn hàng</span>
+            <span className="summary-badge">{todaySummary.orderCount} đơn hàng</span>
           </header>
           <div className="sales-total">
             <span>Doanh thu thuần</span>
-            <strong>{formatVnd(12845000)}</strong>
+            <strong>{formatVnd(todaySummary.revenue)}</strong>
           </div>
           <div className="payment-list">
-            <div>
-              <span className="payment-icon"><CreditCard aria-hidden="true" /></span>
-              <span><strong>Thẻ</strong><small>16 lượt thanh toán</small></span>
-              <b>{formatVnd(8925000)}</b>
-            </div>
-            <div>
-              <span className="payment-icon cash"><Banknote aria-hidden="true" /></span>
-              <span><strong>Tiền mặt</strong><small>8 lượt thanh toán</small></span>
-              <b>{formatVnd(3920000)}</b>
-            </div>
+            {paymentSummary.map((payment) => (
+              <div key={payment.method}>
+                <span className={`payment-icon ${payment.method === 'cash' ? 'cash' : ''}`}>{payment.method === 'cash' ? <Banknote aria-hidden="true" /> : <CreditCard aria-hidden="true" />}</span>
+                <span><strong>{payment.label}</strong><small>{payment.count} lượt thanh toán</small></span>
+                <b>{formatVnd(payment.total)}</b>
+              </div>
+            ))}
           </div>
           <footer className="sales-footer">
             <span>Giá trị đơn trung bình</span>
-            <strong>{formatVnd(535200)}</strong>
+            <strong>{formatVnd(todaySummary.averageOrder)}</strong>
           </footer>
         </article>
       </section>
@@ -207,8 +268,8 @@ export function Dashboard() {
               <li key={product.name}>
                 <span className="seller-rank">{index + 1}</span>
                 <span
-                  className="seller-image"
-                  style={{ backgroundImage: `url(${productSheet})`, backgroundPosition: product.position }}
+                  className={`seller-image${product.imagePath ? '' : ' is-empty'}`}
+                  style={product.imagePath ? { backgroundImage: `url(${product.imagePath})` } : undefined}
                   role="img"
                   aria-label={`${product.name}, màu ${product.detail}`}
                 />

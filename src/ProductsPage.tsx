@@ -1,7 +1,9 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, type ChangeEvent } from 'react'
 import {
+  Camera,
   ChevronDown,
   Grid2X2,
+  ImagePlus,
   List,
   MoreHorizontal,
   PackagePlus,
@@ -15,22 +17,40 @@ import { PageIntro, Pagination, SearchField } from './components/PageUI'
 import { ConfirmationDialog, DialogSurface, OverlayBackdrop } from './components/OverlayBackdrop'
 import { FilterSelect, FormField, FormSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
-import productSheet from './assets/boutique-products.webp'
 import { ProductService, type Product, type ProductInput } from './services/ProductService'
 import { formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 
 const statuses = ['Tất cả trạng thái', 'Đang bán', 'Bản nháp', 'Đã lưu trữ']
 
-function ProductThumb({ product, large = false }: { product: Product; large?: boolean }) {
-  const style = product.imagePath
-    ? { backgroundImage: `url(${product.imagePath})`, backgroundSize: 'cover' }
-    : { backgroundImage: `url(${productSheet})`, backgroundPosition: product.position }
+const makeSku = (category: string) => {
+  const categoryCode = category
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 4)
+    .toUpperCase() || 'SP'
+  return `SN-${categoryCode}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+}
 
+const formatPriceInput = (value: string | number | undefined) => {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  return digits ? new Intl.NumberFormat('vi-VN').format(Number(digits)) : ''
+}
+
+const parsePriceInput = (value: string) => Number(value.replace(/\D/g, ''))
+
+function ProductThumb({ product, large = false }: { product: Product; large?: boolean }) {
   return (
     <span
-      className={large ? 'product-page-image large' : 'product-page-image'}
-      style={style}
+      className={`${large ? 'product-page-image large' : 'product-page-image'}${product.imagePath ? '' : ' is-empty'}`}
+      style={product.imagePath ? { backgroundImage: `url(${product.imagePath})` } : undefined}
       role="img"
       aria-label={`Ảnh sản phẩm ${product.name}`}
     />
@@ -51,6 +71,47 @@ function ProductDialog({
   onClose: () => void
 }) {
   const isEdit = mode === 'edit'
+  const [saveError, setSaveError] = useState('')
+  const [category, setCategory] = useState(product?.category ?? categories[0] ?? '')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState(product?.imagePath ?? '')
+  
+  const [variants, setVariants] = useState(
+    product?.variantList?.length
+      ? product.variantList.map(v => ({
+          id: v.id,
+          sku: v.sku,
+          size: v.size || '',
+          color: v.color || '',
+          priceInput: formatPriceInput(v.price_vnd),
+          stockInput: String(v.stock_quantity),
+        }))
+      : [{ id: Math.random().toString(36).substring(2, 9), sku: makeSku(categories[0] ?? 'SP'), size: '', color: '', priceInput: '', stockInput: '0' }]
+  )
+
+  useEffect(() => {
+    if (isEdit) return
+    setVariants((current) => {
+      if (current.length !== 1 || current[0].sku.includes('-')) return current
+      const next = [...current]
+      next[0] = { ...next[0], sku: makeSku(category) }
+      return next
+    })
+  }, [category, isEdit])
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+    }
+  }, [imagePreview])
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
 
   return (
     <OverlayBackdrop className="dialog-backdrop" onClose={onClose}>
@@ -65,35 +126,98 @@ function ProductDialog({
         <form onSubmit={async (event) => {
           event.preventDefault()
           const form = new FormData(event.currentTarget)
-          const file = form.get('image') as File
-          await onSave({
-            name: String(form.get('name')),
-            category: String(form.get('category')),
-            sku: String(form.get('sku')),
-            price: Number(form.get('price')),
-            stock: Number(form.get('stock')),
-            status: String(form.get('status')) as ProductInput['status'],
-            imageFile: file?.size > 0 ? file : null
-          })
+          setSaveError('')
+          try {
+            await onSave({
+              name: String(form.get('name')),
+              short_description: String(form.get('short_description') ?? '').trim() || null,
+              description: product?.description ?? null,
+              category,
+              status: String(form.get('status')) as ProductInput['status'],
+              imageFile,
+              variants: variants.map(v => ({
+                id: v.id.includes('-') ? v.id : undefined,
+                sku: v.sku,
+                size: v.size.trim(),
+                color: v.color.trim(),
+                price: parsePriceInput(v.priceInput),
+                stock: parseInt(v.stockInput, 10) || 0,
+              }))
+            })
+          } catch (error: any) {
+            setSaveError(error.message || 'Không thể lưu sản phẩm. Vui lòng thử lại.')
+          }
         }}>
-          <div className="dialog-form-grid">
-            <FormField label="Tên sản phẩm" wide>
-              <input name="name" required defaultValue={product?.name} placeholder="Ví dụ: Áo cardigan len gân" autoFocus />
-            </FormField>
-            <FormSelect name="category" label="Danh mục" options={categories} defaultValue={product?.category ?? categories[0]} />
-            <FormField label="SKU">
-              <input name="sku" required defaultValue={product?.sku} placeholder="Ví dụ: KN-024" />
-            </FormField>
-            <FormField label="Giá">
-              <span className="money-input"><i>₫</i><input name="price" type="number" inputMode="numeric" min="0" step="1000" defaultValue={product?.price} placeholder="0" /></span>
-            </FormField>
-            <FormField label="Tồn kho ban đầu">
-              <input name="stock" type="number" inputMode="numeric" min="0" defaultValue={product?.stock ?? 0} />
-            </FormField>
-            <FormSelect name="status" label="Trạng thái" options={statuses.slice(1)} defaultValue={product?.status ?? 'Đang bán'} wide />
-            <FormField label="Ảnh sản phẩm" wide>
-              <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" />
-            </FormField>
+          <div className="dialog-scroll-body">
+            <div className="dialog-form-grid">
+              <FormField label="Tên sản phẩm" wide>
+                <input name="name" required defaultValue={product?.name} placeholder="Ví dụ: Áo cardigan len gân" autoFocus />
+              </FormField>
+              <FormField label="Mô tả sản phẩm" wide>
+                <textarea name="short_description" defaultValue={product?.short_description ?? ''} rows={3} placeholder="VD: Yếm cổ, hở lưng, họa tiết caro đỏ, phong cách Pháp/Âu Mỹ" />
+              </FormField>
+              <FormSelect name="category" label="Danh mục" options={categories} value={category} onChange={(event) => setCategory(event.target.value)} />
+              <FormSelect name="status" label="Trạng thái" options={statuses.slice(1)} defaultValue={product?.status ?? 'Đang bán'} />
+              <div className="product-image-picker">
+                <span>Ảnh sản phẩm</span>
+                <div className={`product-image-preview${imagePreview ? '' : ' is-empty'}`}>
+                  {imagePreview ? <img src={imagePreview} alt="Xem trước ảnh sản phẩm" /> : <ImagePlus aria-hidden="true" />}
+                </div>
+                <div className="product-image-actions">
+                  <label><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} /><ImagePlus aria-hidden="true" /> Chọn ảnh</label>
+                  <label><input type="file" accept="image/*" capture="environment" onChange={handleImageChange} /><Camera aria-hidden="true" /> Chụp ảnh</label>
+                </div>
+              </div>
+              <div className="variants-section">
+                <div className="variants-section-header">
+                  <span>Biến thể sản phẩm (Size, Màu)</span>
+                  <button type="button" onClick={() => setVariants([...variants, { id: Math.random().toString(36).substring(2, 9), sku: makeSku(category), size: '', color: '', priceInput: '', stockInput: '0' }])}>
+                    <Plus aria-hidden="true" /> Thêm biến thể
+                  </button>
+                </div>
+                <div className="variants-list">
+                  {variants.map((v, i) => (
+                    <div key={v.id} className="variant-row">
+                      <FormField label={i === 0 ? "Size" : "\u00A0"}>
+                        <input value={v.size} onChange={e => {
+                          const newVars = [...variants]; newVars[i].size = e.target.value; setVariants(newVars)
+                        }} placeholder="Ví dụ: S, M" />
+                      </FormField>
+                      <FormField label={i === 0 ? "Màu sắc" : "\u00A0"}>
+                        <input value={v.color} onChange={e => {
+                          const newVars = [...variants]; newVars[i].color = e.target.value; setVariants(newVars)
+                        }} placeholder="Ví dụ: Đỏ" />
+                      </FormField>
+                      <FormField label={i === 0 ? "SKU" : "\u00A0"}>
+                        <input value={v.sku} onChange={e => {
+                          const newVars = [...variants]; newVars[i].sku = e.target.value; setVariants(newVars)
+                        }} placeholder="SKU" required />
+                      </FormField>
+                      <FormField label={i === 0 ? "Giá (₫)" : "\u00A0"}>
+                        <input type="text" inputMode="numeric" value={v.priceInput} onChange={e => {
+                          const newVars = [...variants]; newVars[i].priceInput = formatPriceInput(e.target.value); setVariants(newVars)
+                        }} placeholder="0" required />
+                      </FormField>
+                      <FormField label={i === 0 ? "Tồn kho" : "\u00A0"}>
+                        <input type="number" inputMode="numeric" min="0" value={v.stockInput} onChange={e => {
+                          const newVars = [...variants]; newVars[i].stockInput = e.target.value; setVariants(newVars)
+                        }} required />
+                      </FormField>
+                      <button type="button" className="variant-row-delete" style={{ alignSelf: i === 0 ? 'flex-end' : 'center' }} onClick={() => {
+                        if (variants.length > 1) {
+                          setVariants(variants.filter((_, idx) => idx !== i))
+                        } else {
+                          alert('Phải có ít nhất 1 biến thể')
+                        }
+                      }}>
+                        <Trash2 aria-hidden="true" size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {saveError && <p className="dialog-error" role="alert">{saveError}</p>}
           </div>
           <footer className="dialog-footer">
             <button className="dialog-cancel" type="button" onClick={onClose}>Hủy</button>
@@ -138,13 +262,15 @@ export function ProductsPage() {
   const [dialog, setDialog] = useState<'add' | 'edit' | 'delete' | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [page, setPage] = useState(1)
+  const [productMessage, setProductMessage] = useState('')
 
   const filteredProduct = useMemo(() => {
     const normalized = query.trim().toLowerCase()
+    const includesQuery = (value?: string | null) => Boolean(value?.toLowerCase().includes(normalized))
     return products.filter((product) =>
-      (!normalized || product.name.toLowerCase().includes(normalized) || product.sku.toLowerCase().includes(normalized)) &&
+      (!normalized || includesQuery(product.name) || includesQuery(product.sku) || product.variantList.some((variant) => includesQuery(variant.sku)) || includesQuery(product.short_description) || includesQuery(product.description)) &&
       (category === 'Tất cả danh mục' || product.category === category) &&
-      (status === 'Tất cả trạng thái' || product.status === status),
+      (status === 'Tất cả trạng thái' ? product.status !== 'Đã lưu trữ' : product.status === status),
     )
   }, [category, products, query, status])
 
@@ -156,10 +282,16 @@ export function ProductsPage() {
   const deleteProduct = async () => {
     if (selectedProduct) {
       try {
-        await ProductService.delete(selectedProduct.id)
-        setProducts((current) => current.filter((product) => product.id !== selectedProduct.id))
+        const result = await ProductService.delete(selectedProduct.id)
+        if (result.mode === 'archived') {
+          setProducts((current) => current.map((product) => product.id === selectedProduct.id ? { ...product, status: 'Đã lưu trữ' } : product))
+          setProductMessage(result.message ?? 'Sản phẩm đã được lưu trữ.')
+        } else {
+          setProducts((current) => current.filter((product) => product.id !== selectedProduct.id))
+          setProductMessage('Sản phẩm đã được xóa.')
+        }
       } catch (e: any) {
-        alert(e.message || 'Có lỗi xảy ra')
+        setProductMessage(e.message || 'Không thể xóa sản phẩm. Vui lòng thử lại.')
       }
     }
     setDialog(null)
@@ -179,6 +311,7 @@ export function ProductsPage() {
           <Plus aria-hidden="true" /> Thêm sản phẩm
         </button>}
       />
+      {productMessage && <p className="products-toast" role="status">{productMessage}</p>}
 
       <section className="products-stats" aria-label="Tổng hợp sản phẩm">
         <div><span>Tất cả sản phẩm</span><strong>{products.length}</strong><small>Trong 4 danh mục</small></div>
@@ -215,7 +348,7 @@ export function ProductsPage() {
               <tbody>
                 {filteredProduct.map((product) => (
                   <tr key={product.id}>
-                    <td><div className="table-product"><ProductThumb product={product} /><span><strong>{product.name}</strong><small>{product.sku} · {product.variants}</small></span></div></td>
+                    <td><div className="table-product"><ProductThumb product={product} /><span><strong>{product.name}</strong>{product.short_description && <p className="product-short-description">{product.short_description}</p>}<small>{product.sku} · {product.variants}</small></span></div></td>
                     <td>{product.category}</td>
                     <td><strong>{formatVnd(product.price)}</strong></td>
                     <td><span className={`stock-indicator ${product.stock === 0 ? 'out' : product.stock <= 5 ? 'low' : ''}`}><i />{product.stock === 0 ? 'Hết hàng' : `${product.stock} sản phẩm`}</span></td>
@@ -232,7 +365,7 @@ export function ProductsPage() {
               <article className="product-manage-card" key={product.id}>
                 <div className="manage-image-wrap"><ProductThumb product={product} large /><span className={`product-status ${product.status.toLowerCase()}`}>{product.status}</span></div>
                 <div className="manage-card-body">
-                  <div><span>{product.category}</span><h3>{product.name}</h3><small>{product.sku} · {product.variants}</small></div>
+                  <div><span>{product.category}</span><h3>{product.name}</h3>{product.short_description && <p className="product-short-description">{product.short_description}</p>}<small>{product.sku} · {product.variants}</small></div>
                   <div className="manage-price-row"><strong>{formatVnd(product.price)}</strong><span className={`stock-indicator ${product.stock === 0 ? 'out' : product.stock <= 5 ? 'low' : ''}`}><i />{product.stock === 0 ? 'Hết hàng' : `${product.stock} sản phẩm`}</span></div>
                   <div className="manage-card-actions"><button type="button" onClick={() => openDialog('edit', product)}><Pencil /> Sửa</button><button type="button" aria-label={`Xóa ${product.name}`} onClick={() => openDialog('delete', product)}><Trash2 /></button></div>
                 </div>
@@ -256,18 +389,14 @@ export function ProductsPage() {
         product={selectedProduct ?? undefined}
         categories={categories}
         onSave={async (input) => {
-          try {
-            if (dialog === 'edit' && selectedProduct) {
-              await ProductService.update(selectedProduct.id, input)
-            } else {
-              await ProductService.create(input)
-            }
-            await loadProducts()
-            setDialog(null)
-            setSelectedProduct(null)
-          } catch (e: any) {
-            alert(e.message || 'Có lỗi xảy ra')
+          if (dialog === 'edit' && selectedProduct) {
+            await ProductService.update(selectedProduct.id, input)
+          } else {
+            await ProductService.create(input)
           }
+          await loadProducts()
+          setDialog(null)
+          setSelectedProduct(null)
         }}
         onClose={() => setDialog(null)}
       />}

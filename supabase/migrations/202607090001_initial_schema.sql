@@ -4,7 +4,7 @@ create extension if not exists pgcrypto;
 
 create type public.product_status as enum ('active', 'draft', 'archived');
 create type public.order_status as enum ('completed', 'held', 'refunded');
-create type public.payment_method as enum ('cash', 'card');
+create type public.payment_method as enum ('cash', 'card', 'bank_transfer_qr');
 create type public.inventory_movement_type as enum ('sale', 'restock', 'adjustment', 'refund');
 create type public.membership_tier as enum ('member', 'pink', 'vip');
 
@@ -100,9 +100,15 @@ create table public.inventory_movements (
 create table public.store_settings (
   id uuid primary key default gen_random_uuid(),
   store_name text not null,
+  store_logo_path text not null default '',
   timezone text not null default 'Asia/Ho_Chi_Minh',
   currency text not null default 'VND' check (currency = 'VND'),
   tax_rate numeric(5, 2) not null default 0 check (tax_rate between 0 and 100),
+  bank_name text not null default '',
+  bank_account_number text not null default '',
+  bank_account_holder text not null default '',
+  bank_qr_image_path text not null default '',
+  transfer_note_prefix text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -234,7 +240,7 @@ insert into public.products (
     'Áo cardigan len gân',
     'Áo cardigan len gân dáng vừa.',
     'active',
-    'products/cardigan-len-gan.webp'
+    null
   ),
   (
     '20000000-0000-0000-0000-000000000002',
@@ -242,7 +248,7 @@ insert into public.products (
     'Quần linen ống rộng',
     'Quần linen ống rộng mặc hằng ngày.',
     'active',
-    'products/quan-linen-ong-rong.webp'
+    null
   ),
   (
     '20000000-0000-0000-0000-000000000003',
@@ -250,7 +256,7 @@ insert into public.products (
     'Áo thun ôm cơ bản',
     'Áo thun co giãn dáng ôm.',
     'active',
-    'products/ao-thun-om.webp'
+    null
   ),
   (
     '20000000-0000-0000-0000-000000000004',
@@ -258,7 +264,7 @@ insert into public.products (
     'Đầm quấn màu berry',
     'Đầm quấn màu berry trầm.',
     'active',
-    'products/dam-quan-berry.webp'
+    null
   );
 
 insert into public.product_variants (
@@ -376,13 +382,21 @@ insert into public.inventory_movements (
   );
 
 insert into public.store_settings (
-  id, store_name, timezone, currency, tax_rate
+  id, store_name, store_logo_path, timezone, currency, tax_rate,
+  bank_name, bank_account_number, bank_account_holder,
+  bank_qr_image_path, transfer_note_prefix
 ) values (
   '80000000-0000-0000-0000-000000000001',
   'SN Store',
+  '',
   'Asia/Ho_Chi_Minh',
   'VND',
-  8
+  8,
+  '',
+  '',
+  '',
+  '',
+  'SN'
 );
 
 commit;

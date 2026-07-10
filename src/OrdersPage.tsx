@@ -21,7 +21,7 @@ import './ProductsPage.css'
 import './OrdersPage.css'
 
 const statuses = ['Tất cả trạng thái', 'Hoàn tất', 'Đã hoàn tiền', 'Tạm giữ']
-const payments = ['Tất cả thanh toán', 'Thẻ', 'Tiền mặt']
+const payments = ['Tất cả thanh toán', 'Thẻ', 'Tiền mặt', 'Chuyển khoản / QR']
 
 function getStatusClass(status: Order['status']) {
   if (status === 'Đã hoàn tiền') return 'refunded'
@@ -51,7 +51,7 @@ function OrderDrawer({ order, onClose }: { order: Order; onClose: () => void }) 
             <header><h3>Sản phẩm</h3><span>{order.items} sản phẩm</span></header>
             <ul className="drawer-item-list">
               {order.lineItems.map((item) => (
-                <li key={item.name}><span><strong>{item.name}</strong><small>{item.detail} · SL {item.quantity}</small></span><b>{formatVnd(item.price)}</b></li>
+                <li key={item.id}><span><strong>{item.name}</strong><small>{item.detail} · SL {item.quantity}</small></span><b>{formatVnd(item.price)}</b></li>
               ))}
             </ul>
           </section>
@@ -59,8 +59,9 @@ function OrderDrawer({ order, onClose }: { order: Order; onClose: () => void }) 
           <section className="drawer-section payment-detail">
             <header><h3>Tổng hợp thanh toán</h3><span className="payment-method">{order.payment === 'Thẻ' ? <CreditCard /> : <Banknote />}{order.payment}</span></header>
             <dl>
-              <div><dt>Tạm tính</dt><dd>{formatVnd(order.total / 1.08)}</dd></div>
-              <div><dt>Thuế (8%)</dt><dd>{formatVnd(order.total - order.total / 1.08)}</dd></div>
+              <div><dt>Tạm tính</dt><dd>{formatVnd(order.subtotal)}</dd></div>
+              {order.discount > 0 && <div><dt>Giảm giá</dt><dd>-{formatVnd(order.discount)}</dd></div>}
+              <div><dt>Thuế</dt><dd>{formatVnd(order.tax)}</dd></div>
               <div><dt>Tổng cộng</dt><dd>{formatVnd(order.total)}</dd></div>
             </dl>
           </section>
@@ -74,7 +75,7 @@ function OrderDrawer({ order, onClose }: { order: Order; onClose: () => void }) 
             </ol>
           </section>
         </div>
-        <footer className="order-drawer-footer"><button type="button"><ReceiptText /> In hóa đơn</button><button type="button" onClick={onClose}>Xong</button></footer>
+        <footer className="order-drawer-footer"><button type="button" onClick={() => window.print()}><ReceiptText /> In hóa đơn</button><button type="button" onClick={onClose}>Xong</button></footer>
       </DialogSurface>
     </OverlayBackdrop>
   )

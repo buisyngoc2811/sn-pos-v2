@@ -13,8 +13,8 @@ import {
 import { PageIntro, SearchField } from './components/PageUI'
 import { FilterSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
-import productSheet from './assets/boutique-products.webp'
 import { InventoryService, type InventoryItem, type InventoryMovement } from './services/InventoryService'
+import { SettingsService, type StoreSettings } from './services/SettingsService'
 import { formatDate, formatNumber, formatTime, formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 import './InventoryPage.css'
@@ -34,6 +34,7 @@ export function InventoryPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [categories, setCategories] = useState<string[]>(['Tất cả danh mục'])
   const [movements, setMovements] = useState<InventoryMovement[]>([])
+  const [settings, setSettings] = useState<StoreSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -44,12 +45,14 @@ export function InventoryPage() {
       InventoryService.getAll(),
       InventoryService.getCategories(),
       InventoryService.getMovements(),
+      SettingsService.getSettings().catch(() => null),
     ])
-      .then(([items, categoryItems, movementItems]) => {
+      .then(([items, categoryItems, movementItems, storeSettings]) => {
         if (!active) return
         setInventory(items)
         setCategories(['Tất cả danh mục', ...categoryItems])
         setMovements(movementItems)
+        setSettings(storeSettings)
         setLoading(false)
       })
       .catch((err) => {
@@ -79,6 +82,7 @@ export function InventoryPage() {
   const totalUnits = inventory.reduce((total, item) => total + item.stock, 0)
   const lowStockCount = inventory.filter((item) => item.stock > 0 && item.stock <= item.reorder).length
   const outOfStockCount = inventory.filter((item) => item.stock === 0).length
+  const storeName = settings?.store_name?.trim() || 'SN Store'
 
   return (
     <div className="inventory-page">
@@ -98,7 +102,7 @@ export function InventoryPage() {
 
       <section className="inventory-overview-grid">
         <article className="warehouse-card">
-          <header><div><span className="warehouse-icon"><Warehouse /></span><div><h3>Kho chính</h3><p>SN Store · Khu bán hàng và kho phía sau</p></div></div><span className="warehouse-online"><i /> Hoạt động tốt</span></header>
+          <header><div><span className="warehouse-icon"><Warehouse /></span><div><h3>Kho chính</h3><p>{storeName} · Khu bán hàng và kho phía sau</p></div></div><span className="warehouse-online"><i /> Hoạt động tốt</span></header>
           <div className="warehouse-metrics">
             <div><span>Số lượng khả dụng</span><strong>{totalUnits}</strong></div>
             <div><span>Tình trạng tồn kho</span><strong>82%</strong></div>
@@ -110,8 +114,8 @@ export function InventoryPage() {
         <article className="movement-panel" id="movements">
           <header className="inventory-panel-header"><div><h3>Biến động tồn kho</h3><p>Thay đổi tồn kho gần nhất</p></div><a href="#movements">Xem tất cả</a></header>
           <ol className="movement-list">
-            {movements.map((movement) => (
-              <li key={`${movement.product}-${movement.time}`}>
+            {movements.map((movement, index) => (
+              <li key={movement.id || `${movement.product}-${movement.time}-${index}`}>
                 <span className={`movement-icon ${movement.type}`}>{movement.type === 'in' ? <ArrowDownLeft /> : <ArrowUpRight />}</span>
                 <span><strong>{movement.product}</strong><small>{movement.detail} · {formatTime(movement.time)}</small></span>
                 <b className={movement.type}>{movement.amount > 0 ? '+' : ''}{movement.amount}</b>
@@ -138,7 +142,7 @@ export function InventoryPage() {
                 const state = getStockState(item)
                 return (
                   <tr key={item.id}>
-                    <td><div className="table-product"><span className="product-page-image" style={{ backgroundImage: `url(${productSheet})`, backgroundPosition: item.position }} role="img" aria-label={`Ảnh sản phẩm ${item.name}`} /><span><strong>{item.name}</strong><small>{item.variant} · {item.sku}</small></span></div></td>
+                    <td><div className="table-product"><span className={`product-page-image${item.imagePath ? '' : ' is-empty'}`} style={item.imagePath ? { backgroundImage: `url(${item.imagePath})` } : undefined} role="img" aria-label={`Ảnh sản phẩm ${item.name}`} /><span><strong>{item.name}</strong><small>{item.variant} · {item.sku}</small></span></div></td>
                     <td>{item.category}</td>
                     <td><strong>{item.stock}</strong> sản phẩm</td>
                     <td>{item.reorder} sản phẩm</td>
