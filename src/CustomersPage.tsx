@@ -121,10 +121,10 @@ export function CustomersPage() {
     <div className="customers-page">
       <PageIntro kicker="Danh sách khách hàng" title="Khách hàng" description="Xem lịch sử mua hàng và điểm thành viên." action={<span className="customer-count"><UserRound /> {customers.length} khách hàng</span>} />
       <section className="customers-stats">
-        <div><span>Tổng khách hàng</span><strong>248</strong><small>12 tham gia trong tháng</small></div>
-        <div><span>Khách quay lại</span><strong>68%</strong><small>Đã mua hàng nhiều hơn một lần</small></div>
-        <div><span>Chi tiêu trung bình</span><strong>{formatVnd(842000)}</strong><small>Mỗi khách hàng</small></div>
-        <div><span>Điểm thành viên</span><strong>{formatNumber(18400)}</strong><small>Hiện có thể sử dụng</small></div>
+        <div><span>Tổng khách hàng</span><strong>{customers.length}</strong><small>Tài khoản thành viên</small></div>
+        <div><span>Khách quay lại</span><strong>{customers.length ? Math.round((customers.filter((c) => c.orders > 1).length / customers.length) * 100) : 0}%</strong><small>Đã mua hàng nhiều hơn một lần</small></div>
+        <div><span>Chi tiêu trung bình</span><strong>{formatVnd(customers.length ? Math.round(customers.reduce((acc, c) => acc + c.spent, 0) / customers.length) : 0)}</strong><small>Mỗi khách hàng</small></div>
+        <div><span>Điểm thành viên</span><strong>{formatNumber(customers.reduce((acc, c) => acc + c.points, 0))}</strong><small>Hiện có thể sử dụng</small></div>
       </section>
       <section className="customers-panel">
         <header className="products-toolbar">
@@ -151,12 +151,17 @@ export function CustomersPage() {
               ))}
             </tbody>
           </table>
-          {visibleCustomers.length === 0 && (
+          {customers.length === 0 ? (
+            <EmptyState
+              title="Chưa có khách hàng"
+              description="Khách hàng sẽ xuất hiện ở đây khi có đơn hàng hoặc được thêm mới."
+            />
+          ) : visibleCustomers.length === 0 ? (
             <EmptyState
               title="Không tìm thấy khách hàng"
               description="Hãy thử thay đổi từ khóa hoặc bộ lọc."
             />
-          )}
+          ) : null}
         </div>
         <Pagination label="Các trang khách hàng" summary={<>Đang hiển thị {visibleCustomers.length} trên {customers.length} khách hàng</>} page={page} onPageChange={setPage} />
       </section>
