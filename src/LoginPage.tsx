@@ -54,9 +54,9 @@ export function LoginPage() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(236,72,153,0.16),transparent_30%),radial-gradient(circle_at_84%_72%,rgba(255,255,255,0.06),transparent_28%)]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+      <main className="relative z-10 flex min-h-svh items-start justify-center px-4 py-4 sm:px-6 sm:py-6 lg:min-h-screen lg:items-center lg:px-8 lg:py-8">
         <div className="grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.06fr)_minmax(390px,0.94fr)] lg:items-stretch">
-          <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:p-7 lg:min-h-[600px]">
+          <section className="relative order-2 hidden overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:p-7 lg:order-1 lg:block lg:min-h-[600px]">
             <div className="pointer-events-none absolute right-6 top-6 h-20 w-20 rounded-full bg-primary/10 blur-2xl" />
             <div className="relative flex h-full flex-col">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -104,9 +104,9 @@ export function LoginPage() {
             </div>
           </section>
 
-          <section className="flex items-stretch">
-            <div className="flex w-full flex-col justify-between rounded-[28px] border border-white/10 bg-[#171216]/88 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:p-7 lg:min-h-[600px]">
-              <div className="mb-8 flex items-center justify-between gap-4">
+          <section className="order-1 flex items-stretch lg:order-2">
+            <div className="flex w-full flex-col justify-start rounded-[24px] border border-white/10 bg-[#171216]/88 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:rounded-[28px] sm:p-7 lg:min-h-[600px] lg:justify-between">
+              <div className="mb-5 flex items-center justify-between gap-4 sm:mb-8">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20">
                     {storeLogoUrl ? <img className="h-full w-full object-cover" src={storeLogoUrl} alt="" /> : storeInitials}
@@ -122,7 +122,7 @@ export function LoginPage() {
               </div>
 
               <div>
-                <div className="mb-6">
+                <div className="mb-5 sm:mb-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#ff9cc2]">Secure access</p>
                   <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">Đăng nhập hệ thống</h2>
                   <p className="mt-2 text-sm leading-6 text-white/56">Truy cập bảng điều khiển bán hàng của bạn</p>
@@ -134,7 +134,7 @@ export function LoginPage() {
                   </div>
                 )}
 
-                <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                <form onSubmit={handleLogin} className="flex flex-col gap-3 sm:gap-4">
                   <label className="grid gap-2">
                     <span className="text-xs font-semibold text-white/70">Email</span>
                     <input
@@ -169,7 +169,7 @@ export function LoginPage() {
                 </form>
               </div>
 
-              <div className="mt-8 border-t border-white/10 pt-5 text-center text-xs text-white/42">
+              <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-white/42 sm:mt-8 sm:pt-5">
                 SN POS V2 • Developed by Sy Ngoc
               </div>
             </div>
@@ -177,7 +177,7 @@ export function LoginPage() {
         </div>
       </main>
 
-      <footer className="pointer-events-none absolute inset-x-0 bottom-3 z-10 px-4 text-center text-[11px] text-white/34">
+      <footer className="pointer-events-none absolute inset-x-0 bottom-3 z-10 hidden px-4 text-center text-[11px] text-white/34 sm:block">
         © 2026 Sy Ngoc. All rights reserved.
       </footer>
     </div>
