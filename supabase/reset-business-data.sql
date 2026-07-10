@@ -11,6 +11,7 @@
 --   - auth.users
 --   - storage.buckets and storage bucket configuration
 --   - storage.objects by default
+--   - public.categories
 --
 -- Cleared when the table exists:
 --   - public.order_items
@@ -19,12 +20,10 @@
 --   - public.product_variants
 --   - public.products
 --   - public.customers
---   - public.categories
 --
 -- Notes:
 --   - Deletes are ordered to respect foreign key constraints.
---   - Categories are cleared because the seeded categories are demo setup data.
---     If the owner has already configured real categories, comment out that delete.
+--   - Categories are base store setup data and are kept by default so POS filters remain usable.
 --   - This script does not delete product image files from Supabase Storage.
 
 begin;
@@ -54,10 +53,6 @@ begin
   if to_regclass('public.customers') is not null then
     delete from public.customers;
   end if;
-
-  if to_regclass('public.categories') is not null then
-    delete from public.categories;
-  end if;
 end $$;
 
 -- Add project-specific derived reporting/dashboard tables here if introduced later.
@@ -70,6 +65,28 @@ end $$;
 -- end $$;
 
 commit;
+
+-- Optional category cleanup:
+-- Categories are kept by default. Run this only if the owner explicitly wants to
+-- remove all category setup data and recreate it from scratch.
+--
+-- begin;
+-- delete from public.categories;
+-- commit;
+
+-- Optional default category seed:
+-- Use this only if categories were accidentally deleted or the owner wants the
+-- base SN POS category set restored.
+--
+-- insert into public.categories (name, slug, sort_order)
+-- values
+--   ('Áo', 'ao', 1),
+--   ('Quần & váy', 'quan-va-vay', 2),
+--   ('Đầm', 'dam', 3),
+--   ('Áo khoác', 'ao-khoac', 4)
+-- on conflict (slug) do update set
+--   name = excluded.name,
+--   sort_order = excluded.sort_order;
 
 -- Optional storage cleanup:
 -- Product image objects are kept by default because storage cleanup should be
