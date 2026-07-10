@@ -119,6 +119,8 @@ type ConfirmationDialogProps = {
   icon?: ReactNode
   cancelLabel: string
   confirmLabel: string
+  cancelDisabled?: boolean
+  confirmDisabled?: boolean
   onCancel: () => void
   onConfirm: () => void
 }
@@ -133,6 +135,8 @@ export function ConfirmationDialog({
   icon,
   cancelLabel,
   confirmLabel,
+  cancelDisabled,
+  confirmDisabled,
   onCancel,
   onConfirm,
 }: ConfirmationDialogProps) {
@@ -152,8 +156,8 @@ export function ConfirmationDialog({
         <h2 id={titleId}>{title}</h2>
         <p id={descriptionId}>{description}</p>
         <div>
-          <button type="button" onClick={onCancel}>{cancelLabel}</button>
-          <button type="button" onClick={onConfirm}>{confirmLabel}</button>
+          <button type="button" disabled={cancelDisabled} onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </DialogSurface>
     </OverlayBackdrop>

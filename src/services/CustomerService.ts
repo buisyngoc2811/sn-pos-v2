@@ -212,4 +212,28 @@ export const CustomerService = {
       handleServiceError(e)
     }
   },
+
+  async delete(id: string) {
+    try {
+      const { count, error: countError } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('customer_id', id)
+
+      if (countError) handleServiceError(countError)
+
+      if (count && count > 0) {
+        throw new Error('Không thể xóa khách hàng đã có lịch sử mua hàng.')
+      }
+
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id)
+
+      if (error) handleServiceError(error)
+    } catch (e) {
+      handleServiceError(e)
+    }
+  },
 }

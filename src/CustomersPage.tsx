@@ -8,10 +8,11 @@ import {
   ShoppingBag,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   UserRound,
 } from 'lucide-react'
 import { PageIntro, Pagination, SearchField } from './components/PageUI'
-import { DialogSurface, DrawerHeader, OverlayBackdrop } from './components/OverlayBackdrop'
+import { ConfirmationDialog, DialogSurface, DrawerHeader, OverlayBackdrop } from './components/OverlayBackdrop'
 import { FilterSelect } from './components/FormControls'
 import { EmptyState, PageSkeleton } from './components/PageStates'
 import {
@@ -84,6 +85,9 @@ export function CustomersPage() {
   const [tier, setTier] = useState('Tất cả khách hàng')
   const [activity, setActivity] = useState('Mọi hoạt động')
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -98,6 +102,24 @@ export function CustomersPage() {
       setError(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteCustomer = async () => {
+    if (!deletingCustomer) return
+    try {
+      setIsDeleting(true)
+      await CustomerService.delete(deletingCustomer.id)
+      setToastMessage('Đã xóa khách hàng thành công.')
+      setDeletingCustomer(null)
+      void loadCustomers()
+      setTimeout(() => setToastMessage(null), 3000)
+    } catch (e: any) {
+      setToastMessage(e.message)
+      setDeletingCustomer(null)
+      setTimeout(() => setToastMessage(null), 5000)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -138,6 +160,7 @@ export function CustomersPage() {
         <header className="products-toolbar">
           <SearchField label="Tìm khách hàng" placeholder="Tìm tên, thư điện tử hoặc số điện thoại" value={query} onChange={(event) => setQuery(event.target.value)} />
           <div className="product-filters">
+            {toastMessage && <p className="products-toast" role="status" style={{ margin: 0 }}>{toastMessage}</p>}
             <FilterSelect label="Hạng thành viên" value={tier} options={tiers} onChange={(event) => setTier(event.target.value)} icon={<ChevronDown aria-hidden="true" />} />
             <FilterSelect label="Hoạt động gần đây" value={activity} options={activityFilters} onChange={(event) => setActivity(event.target.value)} icon={<SlidersHorizontal aria-hidden="true" />} />
           </div>
@@ -154,7 +177,12 @@ export function CustomersPage() {
                   <td><strong>{formatVnd(customer.spent)}</strong></td>
                   <td><span className={`customer-tier ${customer.tier.toLowerCase()}`}>{customer.tier}</span><small>{formatNumber(customer.points)} điểm</small></td>
                   <td>{customer.lastOrder}</td>
-                  <td><button type="button" aria-label={`Xem ${customer.name}`} onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer) }}><Eye /></button></td>
+                  <td>
+                    <div className="row-actions">
+                      <button type="button" aria-label={`Xem ${customer.name}`} onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer) }}><Eye /></button>
+                      <button type="button" aria-label={`Xóa ${customer.name}`} onClick={(event) => { event.stopPropagation(); setDeletingCustomer(customer) }}><Trash2 /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -174,6 +202,23 @@ export function CustomersPage() {
         <Pagination label="Các trang khách hàng" summary={<>Đang hiển thị {visibleCustomers.length} trên {customers.length} khách hàng</>} page={page} onPageChange={setPage} />
       </section>
       {selectedCustomer && <CustomerDrawer customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />}
+      {deletingCustomer && (
+        <ConfirmationDialog
+          backdropClassName="dialog-backdrop"
+          className="delete-dialog"
+          title="Xóa khách hàng"
+          titleId="delete-customer-title"
+          description={`Bạn có chắc chắn muốn xóa khách hàng ${deletingCustomer.name}? Thao tác này không thể hoàn tác.`}
+          descriptionId="delete-customer-desc"
+          icon={<span className="delete-icon"><Trash2 aria-hidden="true" /></span>}
+          cancelLabel="Hủy"
+          confirmLabel={isDeleting ? 'Đang xóa...' : 'Xóa khách hàng'}
+          cancelDisabled={isDeleting}
+          confirmDisabled={isDeleting}
+          onCancel={() => setDeletingCustomer(null)}
+          onConfirm={handleDeleteCustomer}
+        />
+      )}
     </div>
   )
 }
