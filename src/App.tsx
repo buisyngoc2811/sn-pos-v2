@@ -69,7 +69,9 @@ function getStoreInitials(name: string) {
 function App() {
   const { session, signOut } = useAuth()
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
-  const [isDark, setIsDark] = useState(true)
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('theme') === 'dark'
+  })
   const [currentPage, setCurrentPage] = useState<PagePath>(getPageFromLocation)
   const [settings, setSettings] = useState<StoreSettings | null>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -94,6 +96,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
+    localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
   useEffect(() => {
