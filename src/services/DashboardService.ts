@@ -24,16 +24,6 @@ const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMon
 const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
 const dayKey = (date: Date) => date.toISOString().slice(0, 10)
 
-const chartPoints = (values: number[], width = 296, height = 130, padding = 4) => {
-  const max = Math.max(...values, 1)
-  const step = (width - padding * 2) / Math.max(values.length - 1, 1)
-  return values.map((value, index) => {
-    const x = padding + index * step
-    const y = height - padding - (value / max) * (height - padding * 2)
-    return `${Math.round(x)},${Math.round(y)}`
-  }).join(' ')
-}
-
 export const DashboardService = {
   async getDashboardData() {
     try {
@@ -81,11 +71,15 @@ export const DashboardService = {
       const todayItems = todayOrders.reduce((sum, order) => sum + (order.order_items ?? []).reduce((itemSum: number, item: any) => itemSum + (item.quantity ?? 0), 0), 0)
       const averageOrder = todayOrders.length ? todayRevenue / todayOrders.length : 0
 
-      const revenueByDay = new Map<string, number>()
-      for (let i = 0; i < 7; i += 1) revenueByDay.set(dayKey(addDays(weekStart, i)), 0)
+      const revenueByDay = new Map<string, { revenue: number; orders: number }>()
+      for (let i = 0; i < 7; i += 1) revenueByDay.set(dayKey(addDays(weekStart, i)), { revenue: 0, orders: 0 })
       for (const order of ordersRows) {
         const key = dayKey(new Date(order.completed_at ?? order.created_at))
-        if (revenueByDay.has(key)) revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + (order.total_vnd ?? 0))
+        const current = revenueByDay.get(key)
+        if (current) {
+          current.revenue += order.total_vnd ?? 0
+          current.orders += 1
+        }
       }
 
       const paymentByMethod = new Map<string, { count: number; total: number }>()
@@ -145,7 +139,11 @@ export const DashboardService = {
           tone: 'sale',
         })),
         bestSellers,
-        chartPoints: chartPoints([...revenueByDay.values()]),
+        revenueDays: [...revenueByDay.entries()].map(([date, summary]) => ({
+          date,
+          revenue: summary.revenue,
+          orders: summary.orders,
+        })),
         kpis: [
           { label: 'Doanh thu hôm nay', value: todayRevenue, note: `${todayOrders.length} đơn hàng hôm nay`, icon: Banknote, tone: 'pink' },
           { label: 'Đơn hàng', value: String(todayOrders.length), note: `${monthOrders.length} đơn trong tháng`, icon: ReceiptText, tone: 'violet' },

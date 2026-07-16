@@ -5,11 +5,10 @@ import {
   ArrowUpRight,
   Banknote,
   CreditCard,
-  TrendingUp,
 } from 'lucide-react'
 import { DashboardService } from './services/DashboardService'
 import { SettingsService, type StoreSettings } from './services/SettingsService'
-import { formatNumber, formatTime, formatVnd } from './utils/formatters'
+import { formatTime, formatVnd } from './utils/formatters'
 
 function getGreetingHour(date: Date, timeZone?: string) {
   if (!timeZone) return date.getHours()
@@ -51,11 +50,25 @@ function getGreeting(hour: number) {
   return 'Chào buổi tối'
 }
 
+function formatRevenueDay(date: string, includeDate = false) {
+  const localDate = new Date(`${date}T00:00:00`)
+  const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' })
+    .format(localDate)
+    .replace('.', '')
+    .replace('Thứ ', 'T')
+
+  if (!includeDate) return weekday
+
+  const calendarDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' }).format(localDate)
+  return `${weekday}, ${calendarDate}`
+}
+
 export function Dashboard() {
   const [data, setData] = useState<Awaited<ReturnType<typeof DashboardService.getDashboardData>> | null>(null)
   const [settings, setSettings] = useState<StoreSettings | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [error, setError] = useState<Error | null>(null)
+  const [activeRevenueDay, setActiveRevenueDay] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -83,11 +96,23 @@ export function Dashboard() {
   if (error) throw error
   if (!data) return <PageSkeleton />
 
-  const { activities, bestSellers, chartPoints, kpis, lowInventory, orders, paymentSummary, quickActions, todaySummary } = data
+  const { activities, bestSellers, revenueDays, kpis, lowInventory, orders, paymentSummary, quickActions, todaySummary } = data
   const greetingHour = getGreetingHour(now, settings?.timezone?.trim() || undefined)
   const greeting = getGreeting(greetingHour)
   const storeName = settings?.store_name?.trim() || 'SN Store'
-  const chartArea = `M ${chartPoints.replaceAll(' ', ' L ')} L 292,126 L 4,126 Z`
+  const chartWidth = 420
+  const chartHeight = 154
+  const plotTop = 10
+  const plotBottom = 132
+  const chartMax = Math.max(...revenueDays.map((day) => day.revenue), 1)
+  const highestRevenue = Math.max(...revenueDays.map((day) => day.revenue))
+  const averageRevenue = todaySummary.weekRevenue / revenueDays.length
+  const step = chartWidth / revenueDays.length
+  const barWidth = Math.min(30, step * 0.48)
+  const revenueToY = (revenue: number) => plotBottom - (revenue / chartMax) * (plotBottom - plotTop)
+  const averageY = revenueToY(averageRevenue)
+  const allDaysEmpty = todaySummary.weekRevenue === 0
+  const activeDay = activeRevenueDay === null ? null : revenueDays[activeRevenueDay]
 
   return (
     <div className="dashboard">
@@ -132,42 +157,70 @@ export function Dashboard() {
               <p>7 ngày gần nhất</p>
             </div>
             <div className="revenue-periods">
-              <div><span>Theo tuần</span><strong>{formatVnd(todaySummary.weekRevenue)}</strong></div>
-              <div><span>Theo tháng</span><strong>{formatVnd(todaySummary.monthRevenue)}</strong></div>
-              <span className="revenue-change"><TrendingUp aria-hidden="true" /> Live</span>
+              <div><span>Tổng tuần</span><strong>{formatVnd(todaySummary.weekRevenue)}</strong></div>
+              <span className="revenue-live"><i aria-hidden="true" /> Trực tiếp</span>
             </div>
           </header>
-          <div className="chart-wrap">
+          <div className="chart-wrap revenue-chart-wrap">
             <div className="chart-scale" aria-hidden="true">
-              <span>{formatNumber(20)} tr ₫</span>
-              <span>{formatNumber(10)} tr ₫</span>
+              <span>{formatVnd(chartMax)}</span>
+              <span>{formatVnd(chartMax / 2)}</span>
               <span>{formatVnd(0)}</span>
             </div>
-            <div className="chart-plot">
+            <div className="chart-plot revenue-chart-plot">
               <svg
                 className="revenue-chart"
-                viewBox="0 0 296 130"
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                 preserveAspectRatio="none"
                 role="img"
-                aria-label="Doanh thu tăng trong bảy ngày gần nhất và cao nhất vào thứ Năm"
+                aria-label="Biểu đồ doanh thu bảy ngày gần nhất"
               >
-                <defs>
-                  <linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.2" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <line x1="4" x2="292" y1="24" y2="24" />
-                <line x1="4" x2="292" y1="75" y2="75" />
-                <line x1="4" x2="292" y1="126" y2="126" />
-                <path className="chart-area" d={chartArea} />
-                <polyline className="chart-line" points={chartPoints} />
-                <circle className="chart-point" cx="292" cy="24" r="4" />
+                {[plotTop, (plotTop + plotBottom) / 2, plotBottom].map((y) => (
+                  <line key={y} className="revenue-grid-line" x1="0" x2={chartWidth} y1={y} y2={y} />
+                ))}
+                {!allDaysEmpty && <line className="revenue-average-line" x1="0" x2={chartWidth} y1={averageY} y2={averageY} />}
+                {revenueDays.map((day, index) => {
+                  const x = index * step + (step - barWidth) / 2
+                  const barHeight = day.revenue ? Math.max(4, plotBottom - revenueToY(day.revenue)) : 3
+                  const y = day.revenue ? revenueToY(day.revenue) : plotBottom - barHeight
+                  const isHighest = day.revenue > 0 && day.revenue === highestRevenue
+
+                  return (
+                    <g
+                      key={day.date}
+                      className={`revenue-bar-group ${isHighest ? 'is-highest' : ''}`}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${formatRevenueDay(day.date, true)}: ${formatVnd(day.revenue)}, ${day.orders} đơn hàng`}
+                      onPointerEnter={() => setActiveRevenueDay(index)}
+                      onPointerLeave={() => setActiveRevenueDay(null)}
+                      onFocus={() => setActiveRevenueDay(index)}
+                      onBlur={() => setActiveRevenueDay(null)}
+                      onClick={() => setActiveRevenueDay((current) => current === index ? null : index)}
+                    >
+                      <rect className="revenue-bar-hitarea" x={index * step} y="0" width={step} height={plotBottom} />
+                      <rect className="revenue-bar" x={x} y={y} width={barWidth} height={barHeight} rx="5" ry="5" />
+                    </g>
+                  )
+                })}
               </svg>
-              <div className="chart-labels" aria-hidden="true">
-                <span>T6</span><span>T7</span><span>CN</span><span>T2</span>
-                <span>T3</span><span>T4</span><span>T5</span>
+              <div className="chart-labels revenue-chart-labels" aria-hidden="true">
+                {revenueDays.map((day) => <span key={day.date}>{formatRevenueDay(day.date)}</span>)}
               </div>
+              {activeDay && (
+                <div
+                  className="revenue-tooltip"
+                  style={{
+                    left: `${((activeRevenueDay! + 0.5) / revenueDays.length) * 100}%`,
+                    transform: activeRevenueDay === 0 ? 'translateX(0)' : activeRevenueDay === revenueDays.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                  }}
+                >
+                  <strong>{formatRevenueDay(activeDay.date, true)}</strong>
+                  <span>{formatVnd(activeDay.revenue)}</span>
+                  <small>{activeDay.orders} đơn hàng</small>
+                </div>
+              )}
+              {allDaysEmpty && <p className="revenue-empty-message">Chưa có doanh thu trong 7 ngày gần nhất.</p>}
             </div>
           </div>
         </article>

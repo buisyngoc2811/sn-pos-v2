@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { BarChart3, Check, Eye, EyeOff, PackageCheck, ShoppingBag } from 'lucide-react'
+import { BarChart3, Eye, EyeOff, PackageCheck, ShoppingBag } from 'lucide-react'
 import { supabase } from './utils/supabase'
 import { SettingsService, type StoreSettings } from './services/SettingsService'
 import './LoginPage.css'
@@ -24,11 +24,12 @@ export function LoginPage() {
   const [settings, setSettings] = useState<StoreSettings | null>(null)
   const storeName = settings?.store_name?.trim() || 'NAHÉLLA'
   const storeLogoUrl = settings?.store_logo_path ? SettingsService.getStoreAssetUrl(settings.store_logo_path) : ''
+  const activeLogoUrl = storeLogoUrl || '/sn-pos-logo-master.png'
   const storeInitials = getStoreInitials(storeName)
   const features = [
-    { icon: ShoppingBag, title: 'Bán hàng nhanh', text: 'Thanh toán gọn trong vài thao tác.' },
-    { icon: PackageCheck, title: 'Quản lý tồn kho', text: 'Theo dõi từng sản phẩm rõ ràng.' },
-    { icon: BarChart3, title: 'Báo cáo tức thời', text: 'Nắm doanh thu ngay khi cần.' },
+    { icon: ShoppingBag, title: 'Bán hàng nhanh' },
+    { icon: PackageCheck, title: 'Quản lý tồn kho' },
+    { icon: BarChart3, title: 'Báo cáo trực quan' },
   ]
 
   useEffect(() => {
@@ -58,15 +59,16 @@ export function LoginPage() {
       <main className="login-shell">
         <section className="login-brand-panel">
           <div className="login-brand-gradient" />
-          <div className="login-orb login-orb-left" />
-          <div className="login-orb login-orb-top" />
-          <div className="login-orb login-orb-bottom" />
-          <div className="login-brand-tile" />
+          <div className="login-glow login-glow-one" />
+          <div className="login-glow login-glow-two" />
+          <div className="login-glass-disc login-glass-disc-one" />
+          <div className="login-glass-disc login-glass-disc-two" />
+          <div className="login-glass-ribbon" />
 
           <div className="login-brand-content">
             <div className="login-brand-lockup">
               <div className="login-logo login-logo-light">
-                {storeLogoUrl ? <img src={storeLogoUrl} alt={`${storeName} logo`} /> : storeInitials}
+                {activeLogoUrl ? <img src={activeLogoUrl} alt="SN POS logo" /> : storeInitials}
               </div>
               <div>
                 <p className="login-brand-name">SN POS</p>
@@ -75,28 +77,19 @@ export function LoginPage() {
             </div>
 
             <div className="login-brand-copy">
-              <p className="login-brand-eyebrow">Fashion retail workspace</p>
-              <h1 className="login-brand-heading">
-                Quản lý bán hàng<br />gọn, nhanh và chính xác
-              </h1>
+              <h1 className="login-brand-heading">Quản lý bán hàng<br />thông minh, gọn gàng</h1>
               <p className="login-brand-description">
-                Tất cả công việc bán hàng, tồn kho, đơn hàng và báo cáo của cửa hàng trong một nơi thật trực quan.
+                Bán hàng, tồn kho, đơn hàng và báo cáo trong một nơi.
               </p>
-
-              <div className="login-features">
-                {features.map(({ icon: Icon, title, text }) => (
-                  <div key={title} className="login-feature">
-                    <Icon aria-hidden="true" />
-                    <h2>{title}</h2>
-                    <p>{text}</p>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            <div className="login-brand-note">
-              <span><Check aria-hidden="true" /></span>
-              Thiết kế cho nhịp làm việc của cửa hàng thời trang.
+            <div className="login-feature-list">
+              {features.map(({ icon: Icon, title }) => (
+                <div key={title} className="login-feature-item">
+                  <span><Icon aria-hidden="true" /></span>
+                  <p>{title}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -105,13 +98,12 @@ export function LoginPage() {
           <div className="login-card">
             <div className="login-mobile-lockup">
               <div className="login-logo login-logo-pink">
-                {storeLogoUrl ? <img src={storeLogoUrl} alt={`${storeName} logo`} /> : storeInitials}
+                {activeLogoUrl ? <img src={activeLogoUrl} alt="SN POS logo" /> : storeInitials}
               </div>
               <span>SN POS</span>
             </div>
 
             <header className="login-header">
-              <p>Đăng nhập an toàn</p>
               <h2>Chào mừng trở lại</h2>
               <span>Đăng nhập để tiếp tục quản lý cửa hàng</span>
             </header>
@@ -170,7 +162,7 @@ export function LoginPage() {
             </form>
 
             <footer className="login-footer">
-              SN POS V2 <span>•</span> Developed by Sy Ngoc
+              SN POS V2 <span>·</span> Sy Ngoc
             </footer>
           </div>
         </section>

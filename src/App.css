@@ -1047,7 +1047,7 @@ button {
 .revenue-periods {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .revenue-periods > div {
@@ -1070,28 +1070,30 @@ button {
   line-height: 18px;
 }
 
-.revenue-change {
+.revenue-live {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
+  gap: 5px;
+  padding: 4px 7px;
   border-radius: 999px;
   color: var(--success);
   background: color-mix(in srgb, var(--success) 8%, var(--card));
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 640;
 }
 
-.revenue-change svg {
-  width: 11px;
-  height: 11px;
+.revenue-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .chart-wrap {
   display: flex;
-  height: 216px;
-  gap: 10px;
-  padding: 22px 18px 14px 16px;
+  height: 248px;
+  gap: 12px;
+  padding: 20px 18px 16px 16px;
 }
 
 .chart-scale {
@@ -1100,9 +1102,11 @@ button {
   flex: none;
   flex-direction: column;
   justify-content: space-between;
-  height: 160px;
+  height: 154px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 12px;
+  text-align: right;
 }
 
 .chart-plot {
@@ -1110,48 +1114,100 @@ button {
   flex: 1;
 }
 
+.revenue-chart-plot {
+  position: relative;
+}
+
 .revenue-chart {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 154px;
   overflow: visible;
 }
 
-.revenue-chart line {
-  stroke: color-mix(in srgb, var(--border) 70%, transparent);
+.revenue-grid-line {
+  stroke: color-mix(in srgb, var(--border) 72%, transparent);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.chart-area {
-  fill: url("#revenue-fill");
-}
-
-.chart-line {
-  fill: none;
-  stroke: var(--primary);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.25;
-  filter: drop-shadow(0 4px 5px color-mix(in srgb, var(--primary) 18%, transparent));
+.revenue-average-line {
+  stroke: color-mix(in srgb, var(--primary) 56%, transparent);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.25;
   vector-effect: non-scaling-stroke;
 }
 
-.chart-point {
-  fill: var(--card);
-  stroke: var(--primary);
-  stroke-width: 2.25;
-  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--primary) 25%, transparent));
-  vector-effect: non-scaling-stroke;
+.revenue-bar-group {
+  cursor: pointer;
+}
+
+.revenue-bar-hitarea {
+  fill: transparent;
+}
+
+.revenue-bar {
+  fill: color-mix(in srgb, var(--primary) 36%, var(--muted));
+  transition: fill var(--transition-fast), opacity var(--transition-fast);
+}
+
+.revenue-bar-group:hover .revenue-bar,
+.revenue-bar-group:focus .revenue-bar {
+  fill: color-mix(in srgb, var(--primary) 72%, var(--card));
+}
+
+.revenue-bar-group.is-highest .revenue-bar {
+  fill: var(--primary);
+}
+
+.revenue-bar-group:focus {
+  outline: none;
 }
 
 .chart-labels {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-top: 7px;
+  margin-top: 8px;
   color: var(--muted-foreground);
+  font-size: 9.5px;
+  text-align: center;
+}
+
+.revenue-tooltip {
+  position: absolute;
+  top: 3px;
+  z-index: 1;
+  display: grid;
+  min-width: 122px;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  box-shadow: 0 8px 20px -16px rgb(78 45 60 / 42%);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.revenue-tooltip strong { font-weight: 650; }
+.revenue-tooltip span { color: var(--primary); font-size: 11px; font-weight: 700; }
+.revenue-tooltip small { color: var(--muted-foreground); font-size: 9px; }
+
+.revenue-empty-message {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
   font-size: 10px;
   text-align: center;
+  transform: translateX(-50%);
 }
 
 .summary-badge {
@@ -1998,7 +2054,7 @@ button {
   }
 
   .chart-wrap {
-    height: 198px;
+    height: 210px;
     padding-inline: 12px;
   }
 
@@ -2023,10 +2079,6 @@ button {
 
   .revenue-periods {
     gap: 9px;
-  }
-
-  .revenue-periods > div:first-child {
-    display: none;
   }
 
   .best-seller-list,
