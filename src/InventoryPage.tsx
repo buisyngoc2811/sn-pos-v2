@@ -15,7 +15,7 @@ import { FilterSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
 import { InventoryService, type InventoryItem, type InventoryMovement } from './services/InventoryService'
 import { SettingsService, type StoreSettings } from './services/SettingsService'
-import { formatDate, formatNumber, formatTime, formatVnd } from './utils/formatters'
+import { formatNumber, formatTime, formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 import './InventoryPage.css'
 
@@ -82,6 +82,7 @@ export function InventoryPage() {
   const totalUnits = inventory.reduce((total, item) => total + item.stock, 0)
   const lowStockCount = inventory.filter((item) => item.stock > 0 && item.stock <= item.reorder).length
   const outOfStockCount = inventory.filter((item) => item.stock === 0).length
+  const healthyStockRate = inventory.length ? Math.round((inventory.filter((item) => item.stock > item.reorder).length / inventory.length) * 100) : 0
   const storeName = settings?.store_name?.trim() || 'SN Store'
 
   return (
@@ -105,10 +106,10 @@ export function InventoryPage() {
           <header><div><span className="warehouse-icon"><Warehouse /></span><div><h3>Kho chính</h3><p>{storeName} · Khu bán hàng và kho phía sau</p></div></div><span className="warehouse-online"><i /> Hoạt động tốt</span></header>
           <div className="warehouse-metrics">
             <div><span>Số lượng khả dụng</span><strong>{totalUnits}</strong></div>
-            <div><span>Tình trạng tồn kho</span><strong>82%</strong></div>
-            <div><span>Kiểm kê gần nhất</span><strong>{formatDate('2026-07-08')}</strong></div>
+            <div><span>Tình trạng tồn kho</span><strong>{healthyStockRate}%</strong></div>
+            <div><span>Biến thể cần xử lý</span><strong>{lowStockCount + outOfStockCount}</strong></div>
           </div>
-          <div className="stock-health"><span><i style={{ width: '82%' }} /></span><small>Phần lớn sản phẩm có mức tồn kho tốt</small></div>
+          <div className="stock-health"><span><i style={{ width: `${healthyStockRate}%` }} /></span><small>{healthyStockRate}% biến thể đang trên ngưỡng nhập thêm</small></div>
         </article>
 
         <article className="movement-panel" id="movements">

@@ -18,6 +18,7 @@ export type Customer = {
   orders: number
   spent: number
   points: number
+  nextRewardThreshold: number
   tier: CustomerTier
   lastOrder: string
   purchases: CustomerPurchase[]
@@ -57,11 +58,17 @@ type OrderRow = {
   }>
 }
 
+type LoyaltyProgramRow = {
+  next_reward_threshold: number
+}
+
 const tierToVietnamese: Record<CustomerRow['membership_tier'], CustomerTier> = {
   member: 'Thành viên',
   pink: 'Hồng',
   vip: 'VIP',
 }
+
+const fallbackNextRewardThreshold = 1500
 
 function formatDateValue(value: string) {
   return new Intl.DateTimeFormat('vi-VN', {
@@ -170,11 +177,30 @@ export const CustomerService = {
         supabase
           .from('orders')
           .select('customer_id, order_number, total_vnd, completed_at, created_at, order_items(product_name_snapshot)')
+          .eq('status', 'completed')
           .order('created_at', { ascending: false }),
       ])
 
       if (customersResult.error) handleServiceError(customersResult.error)
       if (ordersResult.error) handleServiceError(ordersResult.error)
+
+      let nextRewardThreshold = fallbackNextRewardThreshold
+      try {
+        const { data: loyaltyProgram, error: loyaltyProgramError } = await supabase
+          .from('loyalty_program_settings')
+          .select('next_reward_threshold')
+          .eq('id', true)
+          .maybeSingle()
+
+        if (loyaltyProgramError) {
+          console.warn('Loyalty settings unavailable; using the display fallback.', loyaltyProgramError.message)
+        } else if (loyaltyProgram) {
+          const configuredThreshold = (loyaltyProgram as LoyaltyProgramRow).next_reward_threshold
+          if (Number.isFinite(configuredThreshold) && configuredThreshold > 0) nextRewardThreshold = configuredThreshold
+        }
+      } catch (error) {
+        console.warn('Loyalty settings unavailable; using the display fallback.', error)
+      }
 
       const ordersByCustomer = new Map<string, OrderRow[]>()
       for (const order of (ordersResult.data as unknown as OrderRow[])) {
@@ -198,6 +224,7 @@ export const CustomerService = {
           orders: customerOrders.length,
           spent: customerOrders.reduce((total, order) => total + order.total_vnd, 0),
           points: row.loyalty_points,
+          nextRewardThreshold,
           tier: tierToVietnamese[row.membership_tier],
           lastOrder: latestOrder ? formatRelativeOrder(latestOrder.completed_at ?? latestOrder.created_at) : '',
           purchases: customerOrders.slice(0, 3).map((order) => ({

@@ -15,21 +15,24 @@ import { PageIntro, Pagination, SearchField } from './components/PageUI'
 import { ConfirmationDialog, DialogSurface, DrawerHeader, OverlayBackdrop } from './components/OverlayBackdrop'
 import { FilterSelect } from './components/FormControls'
 import { EmptyState, PageSkeleton } from './components/PageStates'
-import {
-  customerActivityFilters as activityFilters,
-  customerTiers as tiers,
-} from './data/mockData'
 import { CustomerService, type Customer } from './services/CustomerService'
 import { formatDate, formatNumber, formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 import './OrdersPage.css'
 import './CustomersPage.css'
 
+const tiers = ['Tất cả khách hàng', 'Thành viên', 'Hồng', 'VIP']
+const activityFilters = ['Mọi hoạt động', 'Mua hàng hôm nay']
+
 function initials(name: string) {
   return name.split(' ').map((word) => word[0]).join('')
 }
 
 function CustomerDrawer({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  const threshold = Math.max(1, customer.nextRewardThreshold)
+  const loyaltyProgress = Math.max(0, Math.min(100, Math.round((Math.max(0, customer.points) / threshold) * 100)))
+  const remainingPoints = Math.max(0, threshold - Math.max(0, customer.points))
+
   return (
     <OverlayBackdrop className="order-drawer-backdrop" onClose={onClose}>
       <DialogSurface as="aside" className="order-drawer customer-drawer" labelledBy="customer-profile-title">
@@ -56,13 +59,13 @@ function CustomerDrawer({ customer, onClose }: { customer: Customer; onClose: ()
           <section className="customer-metrics">
             <div><span>Tổng chi tiêu</span><strong>{formatVnd(customer.spent)}</strong></div>
             <div><span>Tổng đơn hàng</span><strong>{customer.orders}</strong></div>
-            <div><span>Giá trị đơn trung bình</span><strong>{formatVnd(customer.spent / customer.orders)}</strong></div>
+            <div><span>Giá trị đơn trung bình</span><strong>{formatVnd(customer.orders ? customer.spent / customer.orders : 0)}</strong></div>
           </section>
 
           <section className="loyalty-card">
-            <header><div><Sparkles /><span><strong>{formatNumber(customer.points)} điểm</strong><small>Hạng {customer.tier}</small></span></div><b>{formatNumber(Math.min(100, Math.round(customer.points / 15)))}%</b></header>
-            <span className="loyalty-progress"><i style={{ width: `${Math.min(100, customer.points / 15)}%` }} /></span>
-            <p>Còn {formatNumber(Math.max(0, 1500 - customer.points))} điểm để nhận ưu đãi tiếp theo</p>
+            <header><div><Sparkles /><span><strong>{formatNumber(customer.points)} điểm</strong><small>Hạng {customer.tier}</small></span></div><b>{formatNumber(loyaltyProgress)}%</b></header>
+            <span className="loyalty-progress"><i style={{ width: `${loyaltyProgress}%` }} /></span>
+            <p>{remainingPoints > 0 ? `Còn ${formatNumber(remainingPoints)} điểm để nhận ưu đãi tiếp theo` : 'Đã đạt mốc ưu đãi hiện tại'}</p>
           </section>
 
           <section className="drawer-section">
@@ -98,6 +101,7 @@ export function CustomersPage() {
       setLoading(true)
       const data = await CustomerService.getAll()
       setCustomers(data)
+      setSelectedCustomer((current) => current ? data.find((customer) => customer.id === current.id) ?? null : null)
     } catch (e: any) {
       setError(e)
     } finally {
@@ -125,6 +129,12 @@ export function CustomersPage() {
 
   useEffect(() => {
     void loadCustomers()
+  }, [])
+
+  useEffect(() => {
+    const refreshCustomers = () => void loadCustomers()
+    window.addEventListener('sn-pos-v2:customer-updated', refreshCustomers)
+    return () => window.removeEventListener('sn-pos-v2:customer-updated', refreshCustomers)
   }, [])
 
   const visibleCustomers = useMemo(() => {

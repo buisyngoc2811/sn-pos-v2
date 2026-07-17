@@ -1,15 +1,22 @@
 import { supabase, handleServiceError } from '../utils/supabase'
 import { STORAGE_BUCKETS, type StorageBucket } from './storageBuckets'
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']
 const MAX_PRODUCT_IMAGE_BYTES = 15 * 1024 * 1024
 const MAX_CONVERTED_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_PRODUCT_IMAGE_DIMENSION = 1200
 const WEBP_QUALITY = 0.82
 
+export type ImageUploadStatus = 'processing' | 'uploading' | 'complete'
+
+function imageExtension(file: File): string {
+  return file.name.split('.').pop()?.toLowerCase() ?? ''
+}
+
 export function validateProductImageFile(file: File): void {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error('Chỉ chấp nhận ảnh JPG, JPEG, PNG hoặc WebP')
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !ALLOWED_IMAGE_EXTENSIONS.includes(imageExtension(file))) {
+    throw new Error('Chỉ chấp nhận ảnh JPG, JPEG, PNG, HEIC, HEIF hoặc WebP')
   }
 
   if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
@@ -29,13 +36,34 @@ function makeWebpFileName(file: File): string {
   return `${baseName}-${crypto.randomUUID()}.webp`
 }
 
-function loadImage(file: File): Promise<HTMLImageElement> {
+type DecodedImage = {
+  source: CanvasImageSource
+  width: number
+  height: number
+  dispose: () => void
+}
+
+async function loadImage(file: File): Promise<DecodedImage> {
+  if ('createImageBitmap' in window) {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        dispose: () => bitmap.close(),
+      }
+    } catch {
+      // Fall back to the browser's <img> decoder for formats it supports there.
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file)
     const image = new Image()
     image.onload = () => {
       URL.revokeObjectURL(objectUrl)
-      resolve(image)
+      resolve({ source: image, width: image.naturalWidth, height: image.naturalHeight, dispose: () => undefined })
     }
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl)
@@ -48,15 +76,15 @@ function loadImage(file: File): Promise<HTMLImageElement> {
 async function convertProductImageToWebp(file: File): Promise<File> {
   validateProductImageFile(file)
 
-  let image: HTMLImageElement
+  let image: DecodedImage
   try {
     image = await loadImage(file)
   } catch {
-    throw new Error('Không thể đọc ảnh để tối ưu. Vui lòng chọn một ảnh JPG, PNG hoặc WebP hợp lệ.')
+    throw new Error('Không thể đọc ảnh để tối ưu. Hãy chọn JPG, PNG hoặc WebP; HEIC/HEIF chỉ hoạt động khi trình duyệt hỗ trợ.')
   }
 
-  const sourceWidth = image.naturalWidth
-  const sourceHeight = image.naturalHeight
+  const sourceWidth = image.width
+  const sourceHeight = image.height
   if (!sourceWidth || !sourceHeight) {
     throw new Error('Không thể xác định kích thước ảnh để tối ưu.')
   }
@@ -73,7 +101,8 @@ async function convertProductImageToWebp(file: File): Promise<File> {
 
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
-  context.drawImage(image, 0, 0, width, height)
+  context.drawImage(image.source, 0, 0, width, height)
+  image.dispose()
 
   const webpBlob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, 'image/webp', WEBP_QUALITY)
@@ -98,8 +127,13 @@ function handleImageStorageError(error: any): never {
 }
 
 export const ImageService = {
-  async uploadImage(file: File, bucket: StorageBucket = STORAGE_BUCKETS.products): Promise<string> {
+  async uploadImage(
+    file: File,
+    bucket: StorageBucket = STORAGE_BUCKETS.products,
+    onStatus?: (status: ImageUploadStatus) => void,
+  ): Promise<string> {
     try {
+      onStatus?.('processing')
       const uploadFile = bucket === STORAGE_BUCKETS.products
         ? await convertProductImageToWebp(file)
         : file
@@ -109,12 +143,14 @@ export const ImageService = {
         if (!ALLOWED_IMAGE_TYPES.includes(file.type)) throw new Error('Chỉ chấp nhận định dạng JPEG, PNG và WebP')
       }
 
+      onStatus?.('uploading')
       const { error } = await supabase.storage
         .from(bucket)
         .upload(uploadFile.name, uploadFile, { contentType: uploadFile.type })
 
       if (error) handleImageStorageError(error)
 
+      onStatus?.('complete')
       return uploadFile.name
     } catch (e) {
       handleImageStorageError(e)

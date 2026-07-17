@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { BadgeCheck, Landmark, Moon, ReceiptText, Store, Upload } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Landmark, Moon, ReceiptText, ShieldAlert, Store, Upload } from 'lucide-react'
+import { DialogSurface, OverlayBackdrop } from './components/OverlayBackdrop'
 import { PageSkeleton } from './components/PageStates'
 import { PageIntro } from './components/PageUI'
 import { ImageService } from './services/ImageService'
 import { SettingsService, type StoreSettings } from './services/SettingsService'
 import { STORAGE_BUCKETS } from './services/storageBuckets'
+import { SystemDataService } from './services/SystemDataService'
 
 type BankSettingsForm = Pick<
   StoreSettings,
@@ -42,6 +44,14 @@ export function SettingsPage() {
   const [isStoreSaving, setIsStoreSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [error, setError] = useState<Error | null>(null)
+  const [isStoreOwner, setIsStoreOwner] = useState(false)
+  const [isOwnerLoading, setIsOwnerLoading] = useState(true)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [resetPhrase, setResetPhrase] = useState('')
+  const [resetAcknowledged, setResetAcknowledged] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const [resetSuccess, setResetSuccess] = useState('')
 
   useEffect(() => {
     SettingsService.getSettings()
@@ -64,6 +74,12 @@ export function SettingsPage() {
         })
       })
       .catch(setError)
+  }, [])
+
+  useEffect(() => {
+    SystemDataService.isStoreOwner()
+      .then(setIsStoreOwner)
+      .finally(() => setIsOwnerLoading(false))
   }, [])
 
   useEffect(() => {
@@ -132,6 +148,32 @@ export function SettingsPage() {
     }
   }
 
+  const closeResetDialog = () => {
+    if (isResetting) return
+    setIsResetDialogOpen(false)
+    setResetPhrase('')
+    setResetAcknowledged(false)
+    setResetError('')
+  }
+
+  const handleResetSalesData = async () => {
+    if (resetPhrase !== 'XOA DU LIEU' || !resetAcknowledged || isResetting) return
+    setIsResetting(true)
+    setResetError('')
+
+    try {
+      const result = await SystemDataService.resetTestSalesData()
+      sessionStorage.removeItem('sn-pos-v2:pos-cart')
+      setResetSuccess(`Đã xóa ${result.deleted_orders} đơn hàng thử nghiệm và khôi phục ${result.restored_units} sản phẩm vào kho.`)
+      setIsResetDialogOpen(false)
+      window.setTimeout(() => window.location.reload(), 1600)
+    } catch (resetFailure) {
+      setResetError(resetFailure instanceof Error ? resetFailure.message : 'Không thể xóa dữ liệu bán hàng. Vui lòng thử lại.')
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
   if (error) throw error
   if (!settings) return <PageSkeleton />
 
@@ -139,6 +181,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <PageIntro kicker="Thiết lập cửa hàng" title="Cài đặt" description="Thông tin và tùy chọn hiển thị của cửa hàng." />
       {saveError && <p className="settings-error" role="alert">{saveError}</p>}
+      {resetSuccess && <p className="settings-success" role="status">{resetSuccess}</p>}
 
       <section className="settings-panel" aria-labelledby="store-settings-title">
         <header>
@@ -224,6 +267,55 @@ export function SettingsPage() {
           <div><dt>Phong cách</dt><dd>Dark boutique</dd></div>
         </dl>
       </section>
+
+      <section className="settings-panel settings-system-panel" aria-labelledby="system-data-title">
+        <header>
+          <span className="settings-icon danger"><ShieldAlert aria-hidden="true" /></span>
+          <div>
+            <h3 id="system-data-title">Dữ liệu hệ thống</h3>
+            <p>Xóa đơn hàng, doanh thu và dữ liệu giao dịch thử nghiệm. Sản phẩm và cài đặt cửa hàng được giữ nguyên.</p>
+          </div>
+        </header>
+        <div className="settings-danger-action">
+          <div>
+            <strong>Xóa dữ liệu bán hàng thử nghiệm</strong>
+            <small>Chỉ chủ cửa hàng đã được xác thực mới có thể thực hiện thao tác này.</small>
+          </div>
+          <button type="button" className="settings-danger-button" disabled={isOwnerLoading || !isStoreOwner} onClick={() => setIsResetDialogOpen(true)}>
+            <AlertTriangle aria-hidden="true" /> Xóa dữ liệu bán hàng thử nghiệm
+          </button>
+        </div>
+      </section>
+
+      {isResetDialogOpen && (
+        <OverlayBackdrop className="dialog-backdrop" onClose={closeResetDialog} dismissOnBackdrop={false} dismissOnEscape={false}>
+          <DialogSurface className="settings-reset-dialog" labelledBy="reset-sales-title" describedBy="reset-sales-description" kind="alertdialog">
+            <span className="settings-reset-icon"><AlertTriangle aria-hidden="true" /></span>
+            <h2 id="reset-sales-title">Xóa dữ liệu bán hàng thử nghiệm?</h2>
+            <p id="reset-sales-description">Thao tác này không thể hoàn tác.</p>
+            <div className="settings-reset-summary">
+              <div><strong>Sẽ xóa</strong><span>Đơn hàng, chi tiết đơn, doanh thu và lịch sử biến động kho từ đơn hàng.</span></div>
+              <div><strong>Sẽ giữ nguyên</strong><span>Sản phẩm, biến thể, danh mục, ảnh, khách hàng và cài đặt cửa hàng.</span></div>
+              <div><strong>Kho hàng</strong><span>Số lượng đã bán trong đơn hoàn tất sẽ được cộng trả về biến thể tương ứng.</span></div>
+            </div>
+            <label className="settings-reset-field">
+              <span>Nhập <strong>XOA DU LIEU</strong> để xác nhận</span>
+              <input value={resetPhrase} onChange={(event) => setResetPhrase(event.target.value)} disabled={isResetting} autoComplete="off" />
+            </label>
+            <label className="settings-reset-check">
+              <input type="checkbox" checked={resetAcknowledged} onChange={(event) => setResetAcknowledged(event.target.checked)} disabled={isResetting} />
+              <span>Tôi hiểu thao tác này không thể hoàn tác.</span>
+            </label>
+            {resetError && <p className="settings-error" role="alert">{resetError}</p>}
+            <footer>
+              <button type="button" onClick={closeResetDialog} disabled={isResetting}>Hủy</button>
+              <button type="button" className="settings-danger-button" onClick={handleResetSalesData} disabled={isResetting || resetPhrase !== 'XOA DU LIEU' || !resetAcknowledged}>
+                {isResetting ? 'Đang xóa dữ liệu…' : 'Xóa vĩnh viễn'}
+              </button>
+            </footer>
+          </DialogSurface>
+        </OverlayBackdrop>
+      )}
     </div>
   )
 }

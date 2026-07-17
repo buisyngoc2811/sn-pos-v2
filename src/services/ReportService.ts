@@ -1,17 +1,21 @@
 import { supabase, handleServiceError } from '../utils/supabase'
 
-const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
-const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+const businessTimeZone = 'Asia/Ho_Chi_Minh'
+const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: businessTimeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+const hourFormatter = new Intl.DateTimeFormat('en-US', { timeZone: businessTimeZone, hour: 'numeric', hour12: false })
 const dayKey = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const parts = dayFormatter.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+const startOfBusinessDay = (value: string) => new Date(`${value}T00:00:00+07:00`)
+const addDaysToKey = (value: string, days: number) => {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
 }
 
 const parseLocalDate = (value: string, endOfDay = false) => {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0)
+  return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+07:00`)
 }
 
 const makePoints = (values: number[], width = 350, height = 146, padding = 4) => {
@@ -27,13 +31,12 @@ const makePoints = (values: number[], width = 350, height = 146, padding = 4) =>
 export const ReportService = {
   async getReportData(startDate?: string, endDate?: string) {
     try {
-      const todayStart = startOfLocalDay(new Date())
-      const defaultStart = addDays(todayStart, -8)
-      let rangeStart = startDate ? parseLocalDate(startDate) : defaultStart
-      let rangeEnd = endDate ? parseLocalDate(endDate, true) : parseLocalDate(dayKey(todayStart), true)
+      const todayKey = dayKey(new Date())
+      let rangeStart = startDate ? parseLocalDate(startDate) : startOfBusinessDay(addDaysToKey(todayKey, -8))
+      let rangeEnd = endDate ? parseLocalDate(endDate, true) : parseLocalDate(todayKey, true)
 
       if (rangeStart > rangeEnd) {
-        const nextStart = startOfLocalDay(rangeEnd)
+        const nextStart = startOfBusinessDay(dayKey(rangeEnd))
         rangeEnd = parseLocalDate(dayKey(rangeStart), true)
         rangeStart = nextStart
       }
@@ -45,14 +48,16 @@ export const ReportService = {
         supabase
           .from('orders')
           .select('id, customer_id, status, payment_method, total_vnd, completed_at, created_at')
-          .gte('created_at', startISO)
-          .lte('created_at', endISO)
-          .order('created_at', { ascending: true }),
+          .eq('status', 'completed')
+          .gte('completed_at', startISO)
+          .lte('completed_at', endISO)
+          .order('completed_at', { ascending: true }),
         supabase
           .from('order_items')
           .select('product_variant_id, product_name_snapshot, quantity, line_total_vnd, orders!inner(status, completed_at, created_at, customer_id)')
-          .gte('orders.created_at', startISO)
-          .lte('orders.created_at', endISO),
+          .eq('orders.status', 'completed')
+          .gte('orders.completed_at', startISO)
+          .lte('orders.completed_at', endISO),
         supabase
           .from('product_variants')
           .select('id, products(categories(name))'),
@@ -66,8 +71,8 @@ export const ReportService = {
       if (variantsResult.error) handleServiceError(variantsResult.error)
       if (customersResult.error) handleServiceError(customersResult.error)
 
-      const orders = (ordersResult.data as any[] ?? []).filter((order) => order.status !== 'refunded')
-      const items = (itemsResult.data as any[] ?? []).filter((item) => item.orders?.status !== 'refunded')
+      const orders = (ordersResult.data as any[] ?? [])
+      const items = (itemsResult.data as any[] ?? [])
 
       const revenue = orders.reduce((sum, order) => sum + (order.total_vnd ?? 0), 0)
       const orderCount = orders.length
@@ -75,8 +80,8 @@ export const ReportService = {
       const averageOrder = orderCount ? revenue / orderCount : 0
 
       const revenueByDay = new Map<string, number>()
-      for (let date = startOfLocalDay(rangeStart); date <= rangeEnd; date = addDays(date, 1)) {
-        revenueByDay.set(dayKey(date), 0)
+      for (let date = dayKey(rangeStart); date <= dayKey(rangeEnd); date = addDaysToKey(date, 1)) {
+        revenueByDay.set(date, 0)
       }
       for (const order of orders) {
         const key = dayKey(new Date(order.completed_at ?? order.created_at))
@@ -105,7 +110,7 @@ export const ReportService = {
 
       const hourBuckets = new Map<number, number>()
       for (const order of orders) {
-        const hour = new Date(order.completed_at ?? order.created_at).getHours()
+        const hour = Number(hourFormatter.format(new Date(order.completed_at ?? order.created_at)))
         hourBuckets.set(hour, (hourBuckets.get(hour) ?? 0) + (order.total_vnd ?? 0))
       }
       const maxHour = Math.max(...hourBuckets.values(), 1)
@@ -148,6 +153,7 @@ export const ReportService = {
         itemsSold,
         orderCount,
         revenue,
+        revenueChartMax: Math.max(...revenueByDay.values(), 1),
         startDate: dayKey(rangeStart),
         endDate: dayKey(rangeEnd),
         revenueLabels: [...revenueByDay.keys()].map((key) => key.slice(5).replace('-', '/')),

@@ -79,115 +79,24 @@ export const PosService = {
     }
   },
 
-  async checkout(cart: PosCartItem[], subtotal: number, discount: number, tax: number, total: number, paymentMethod: PosPaymentMethod, customerId?: string | null) {
+  async checkout(cart: PosCartItem[], subtotal: number, discount: number, tax: number, total: number, paymentMethod: PosPaymentMethod, checkoutRequestId: string, customerId?: string | null) {
     if (!cart || cart.length === 0) throw new Error('Giỏ hàng trống')
     if (subtotal < 0 || discount < 0 || tax < 0 || total < 0) throw new Error('Giá trị đơn hàng không hợp lệ')
     if (cart.some((item) => item.quantity <= 0)) throw new Error('Số lượng sản phẩm không hợp lệ')
 
     try {
-      const quantityById = new Map<string, number>()
-      for (const item of cart) {
-        quantityById.set(item.id, (quantityById.get(item.id) ?? 0) + item.quantity)
-      }
-
-      const { data: stockRows, error: stockError } = await supabase
-        .from('product_variants')
-        .select('id, stock_quantity')
-        .in('id', [...quantityById.keys()])
-
-      if (stockError) handleServiceError(stockError)
-
-      const stockById = new Map((stockRows || []).map((row) => [row.id, row.stock_quantity]))
-      for (const item of cart) {
-        const currentStock = stockById.get(item.id)
-        const requestedQuantity = quantityById.get(item.id) ?? item.quantity
-        if (currentStock === undefined) throw new Error(`Không tìm thấy sản phẩm ${item.name}`)
-        if (currentStock <= 0) throw new Error(`${item.name} đã hết hàng`)
-        if (requestedQuantity > currentStock) throw new Error(`${item.name} chỉ còn ${currentStock} sản phẩm`)
-      }
-
-      const orderNumber = Math.floor(Math.random() * 10000).toString()
-      const subtotalVnd = toVndInteger(subtotal)
-      const discountVnd = toVndInteger(discount)
-      const taxVnd = toVndInteger(tax)
-      const totalVnd = toVndInteger(total)
-
-      // 1. Create order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          order_number: orderNumber,
-          customer_id: customerId || null,
-          status: 'completed',
-          payment_method: paymentMethod,
-          subtotal_vnd: subtotalVnd,
-          discount_vnd: discountVnd,
-          tax_vnd: taxVnd,
-          total_vnd: totalVnd,
-          completed_at: new Date().toISOString()
-        })
-        .select('id')
-        .single()
-
-      if (orderError) handleServiceError(orderError)
-      if (!order) throw new Error('Không nhận được dữ liệu phản hồi từ máy chủ')
-
-      // 2. Create order_items
-      const orderItems = cart.map(item => ({
-        order_id: order.id,
-        product_variant_id: item.id,
-        product_name_snapshot: item.name,
-        sku_snapshot: item.sku,
-        variant_snapshot: [item.color, item.size].filter(Boolean).join(' · '),
-        unit_price_vnd: toVndInteger(item.price),
-        quantity: item.quantity,
-        line_total_vnd: toVndInteger(item.price * item.quantity)
-      }))
-
-      const { error: itemsError } = await supabase.from('order_items').insert(orderItems)
-      if (itemsError) handleServiceError(itemsError)
-
-      // 3. Reduce inventory and create movements
-      for (const item of cart) {
-        const { data: variant, error: variantError } = await supabase
-          .from('product_variants')
-          .select('stock_quantity')
-          .eq('id', item.id)
-          .gte('stock_quantity', item.quantity)
-          .single()
-          
-        if (variantError) handleServiceError(variantError)
-        if (!variant) throw new Error(`${item.name} không đủ hàng để thanh toán`)
-
-        const { data: updatedVariant, error: updateError } = await supabase
-          .from('product_variants')
-          .update({ stock_quantity: variant.stock_quantity - item.quantity })
-          .eq('id', item.id)
-          .gte('stock_quantity', item.quantity)
-          .select('stock_quantity')
-          .single()
-            
-        if (updateError) handleServiceError(updateError)
-        if (!updatedVariant) throw new Error(`${item.name} không đủ hàng để thanh toán`)
-
-        const { error: moveError } = await supabase
-          .from('inventory_movements')
-          .insert({
-            product_variant_id: item.id,
-            order_id: order.id,
-            type: 'sale',
-            quantity_change: -item.quantity,
-            quantity_after: variant.stock_quantity - item.quantity,
-            note: `Bán theo đơn hàng #${orderNumber}`
-          })
-            
-        if (moveError) handleServiceError(moveError)
-      }
-
-      return {
-        orderNumber,
-        completedAt: new Date().toISOString()
-      }
+      const { data, error } = await supabase.rpc('complete_sale', {
+        p_items: cart.map((item) => ({ variant_id: item.id, quantity: item.quantity })),
+        p_discount_vnd: toVndInteger(discount),
+        p_tax_vnd: toVndInteger(tax),
+        p_total_vnd: toVndInteger(total),
+        p_payment_method: paymentMethod,
+        p_customer_id: customerId || null,
+        p_checkout_request_id: checkoutRequestId,
+      })
+      if (error) handleServiceError(error)
+      if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ máy chủ')
+      return data as { orderNumber: string; completedAt: string; pointsEarned: number }
     } catch (e) {
       handleServiceError(e)
     }

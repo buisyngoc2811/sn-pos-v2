@@ -1220,3 +1220,20 @@
     padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 }
+.product-image-actions .product-image-capture {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+}
+
+.product-image-actions label:has(input:disabled) {
+  cursor: wait;
+  opacity: .65;
+}
+
+.product-image-status {
+  margin: 7px 0 0;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 14px;
+}

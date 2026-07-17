@@ -66,8 +66,15 @@ const paymentToVietnamese: Record<OrderRow['payment_method'], OrderPayment> = {
 
 function getDateParts(value: string) {
   const date = new Date(value)
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((item) => item.type === type)?.value ?? ''
   return {
-    date: date.toISOString().slice(0, 10),
+    date: `${part('year')}-${part('month')}-${part('day')}`,
     time: new Intl.DateTimeFormat('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',

@@ -156,6 +156,102 @@ button {
   overflow-wrap: anywhere;
 }
 
+.settings-icon.danger,
+.settings-reset-icon {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 10%, var(--card));
+}
+
+.settings-danger-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.settings-danger-action strong,
+.settings-danger-action small {
+  display: block;
+}
+
+.settings-danger-action strong { color: var(--foreground); font-size: 12px; }
+.settings-danger-action small { margin-top: 3px; color: var(--muted-foreground); font-size: 10px; }
+
+.settings-danger-button {
+  display: inline-flex;
+  min-height: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 36%, var(--border));
+  border-radius: 8px;
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--card));
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.settings-danger-button:disabled { cursor: not-allowed; opacity: .52; }
+.settings-danger-button:not(:disabled) { cursor: pointer; }
+
+.settings-success {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border));
+  border-radius: 8px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--card));
+  font-size: 11px;
+}
+
+.settings-reset-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 24px 70px rgb(0 0 0 / .32);
+}
+
+.settings-reset-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+}
+
+.settings-reset-icon svg { width: 17px; height: 17px; }
+.settings-reset-dialog h2 { margin: 12px 0 3px; color: var(--foreground); font-size: 16px; }
+.settings-reset-dialog > p { margin: 0; color: var(--muted-foreground); font-size: 11px; }
+
+.settings-reset-summary {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--muted) 22%, var(--card));
+}
+
+.settings-reset-summary div { display: grid; gap: 2px; }
+.settings-reset-summary strong { color: var(--foreground); font-size: 10px; }
+.settings-reset-summary span { color: var(--muted-foreground); font-size: 10px; line-height: 14px; }
+
+.settings-reset-field { display: grid; gap: 5px; color: var(--foreground); font-size: 10px; font-weight: 590; }
+.settings-reset-field input { min-height: 36px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--foreground); background: var(--background); font: inherit; }
+
+.settings-reset-check { display: flex; align-items: flex-start; gap: 7px; margin-top: 13px; color: var(--muted-foreground); font-size: 10px; line-height: 14px; }
+.settings-reset-check input { margin: 1px 0 0; accent-color: var(--destructive); }
+
+.settings-reset-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.settings-reset-dialog footer > button:first-child { min-height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--card); font: inherit; font-size: 10px; cursor: pointer; }
+
 .settings-form {
   display: grid;
   gap: 12px;
@@ -2006,6 +2102,15 @@ button {
 }
 
 @media (max-width: 639px) {
+  .settings-danger-action {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-danger-button {
+    width: 100%;
+  }
+
   .dashboard-intro {
     align-items: flex-start;
   }

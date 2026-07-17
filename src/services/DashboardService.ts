@@ -53,7 +53,7 @@ export const DashboardService = {
       const tomorrowStart = startOfBusinessDay(tomorrowKey)
       const monthStart = startOfBusinessDay(monthStartKey)
 
-      const [ordersResult, inventoryResult, itemsResult, customersResult] = await Promise.all([
+      const [ordersResult, monthOrdersResult, inventoryResult, itemsResult, customersResult] = await Promise.all([
         supabase
           .from('orders')
           .select('id, order_number, status, payment_method, total_vnd, completed_at, created_at, customers(name), order_items(quantity)')
@@ -63,6 +63,13 @@ export const DashboardService = {
           .order('completed_at', { ascending: false })
           .limit(1000),
         supabase
+          .from('orders')
+          .select('total_vnd')
+          .eq('status', 'completed')
+          .gte('completed_at', monthStart.toISOString())
+          .lt('completed_at', tomorrowStart.toISOString())
+          .limit(1000),
+        supabase
           .from('product_variants')
           .select('sku, size, color, stock_quantity, products(name)')
           .lte('stock_quantity', 5)
@@ -70,24 +77,27 @@ export const DashboardService = {
           .limit(4),
         supabase
           .from('order_items')
-          .select('product_name_snapshot, variant_snapshot, quantity, line_total_vnd, orders(status, completed_at, created_at), product_variants(products(image_path))')
-          .gte('created_at', monthStart.toISOString()),
+          .select('product_name_snapshot, variant_snapshot, quantity, line_total_vnd, orders!inner(status, completed_at), product_variants(products(image_path))')
+          .eq('orders.status', 'completed')
+          .gte('orders.completed_at', monthStart.toISOString())
+          .lt('orders.completed_at', tomorrowStart.toISOString()),
         supabase
           .from('customers')
           .select('id', { count: 'exact', head: true }),
       ])
 
       if (ordersResult.error) handleServiceError(ordersResult.error)
+      if (monthOrdersResult.error) handleServiceError(monthOrdersResult.error)
       if (inventoryResult.error) handleServiceError(inventoryResult.error)
       if (itemsResult.error) handleServiceError(itemsResult.error)
       if (customersResult.error) handleServiceError(customersResult.error)
 
       const ordersRows = (ordersResult.data as any[] ?? [])
       const todayOrders = ordersRows.filter((order) => dayKey(new Date(order.completed_at)) === todayKey)
-      const monthOrders = ordersRows.filter((order) => new Date(order.completed_at) >= monthStart)
+      const monthOrders = monthOrdersResult.data ?? []
       const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total_vnd ?? 0), 0)
       const weekRevenue = ordersRows.reduce((sum, order) => sum + Number(order.total_vnd ?? 0), 0)
-      const monthRevenue = monthOrders.reduce((sum, order) => sum + (order.total_vnd ?? 0), 0)
+      const monthRevenue = monthOrders.reduce((sum, order) => sum + Number(order.total_vnd ?? 0), 0)
       const todayItems = todayOrders.reduce((sum, order) => sum + (order.order_items ?? []).reduce((itemSum: number, item: any) => itemSum + (item.quantity ?? 0), 0), 0)
       const averageOrder = todayOrders.length ? todayRevenue / todayOrders.length : 0
 
@@ -124,7 +134,6 @@ export const DashboardService = {
 
       const productMap = new Map<string, { name: string; detail: string; sold: number; revenue: number; imagePath?: string }>()
       for (const item of (itemsResult.data as any[] ?? [])) {
-        if (item.orders?.status === 'refunded') continue
         const key = item.product_name_snapshot
         const current = productMap.get(key) ?? { name: key, detail: item.variant_snapshot ?? '', sold: 0, revenue: 0, imagePath: getStoragePublicUrl(item.product_variants?.products?.image_path, STORAGE_BUCKETS.products) }
         current.sold += item.quantity ?? 0

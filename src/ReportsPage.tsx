@@ -15,20 +15,22 @@ import { ReportService } from './services/ReportService'
 import { formatNumber, formatVnd } from './utils/formatters'
 import './ReportsPage.css'
 
+const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' })
 const toDateInputValue = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const parts = dayFormatter.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
 }
-
-const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+const addDaysToKey = (value: string, days: number) => {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
 
 export function ReportsPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof ReportService.getReportData>> | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const today = toDateInputValue(new Date())
-  const [startDate, setStartDate] = useState(() => toDateInputValue(addDays(new Date(), -8)))
+  const [startDate, setStartDate] = useState(() => addDaysToKey(today, -8))
   const [endDate, setEndDate] = useState(today)
   const [loading, setLoading] = useState(true)
 
@@ -84,7 +86,7 @@ export function ReportsPage() {
   if (loading && !data) return <PageSkeleton />
   if (!data) return <PageSkeleton />
 
-  const { averageOrder, bestProducts, categorySummary, customerStats, hours, itemsSold, orderCount, revenue, revenueLabels, revenuePoints } = data
+  const { averageOrder, bestProducts, categorySummary, customerStats, hours, itemsSold, orderCount, revenue, revenueChartMax, revenueLabels, revenuePoints, startDate: reportStartDate, endDate: reportEndDate } = data
   const revenueArea = `M ${revenuePoints.replaceAll(' ', ' L ')} L 346,142 L 4,142 Z`
   const lastRevenuePoint = revenuePoints.split(' ').at(-1)?.split(',').map(Number) ?? [346, 142]
   const categoryClasses = ['tops', 'bottoms', 'dresses', 'outerwear']
@@ -111,9 +113,9 @@ export function ReportsPage() {
         <article className="report-panel revenue-report">
           <header className="report-panel-header"><div><h3>Tổng quan doanh thu</h3><p>Doanh thu thuần hằng ngày trong khoảng đã chọn</p></div><div className="report-total"><span>Tổng doanh thu</span><strong>{formatVnd(revenue)}</strong></div></header>
           <div className="report-chart">
-            <div className="report-y-axis"><span>{formatNumber(50)} tr ₫</span><span>{formatNumber(25)} tr ₫</span><span>{formatVnd(0)}</span></div>
+            <div className="report-y-axis"><span>{formatVnd(revenueChartMax)}</span><span>{formatVnd(revenueChartMax / 2)}</span><span>{formatVnd(0)}</span></div>
             <div className="report-chart-plot">
-              <svg viewBox="0 0 350 146" preserveAspectRatio="none" role="img" aria-label="Xu hướng doanh thu tăng tổng thể từ 01/07/2026 đến 09/07/2026">
+              <svg viewBox="0 0 350 146" preserveAspectRatio="none" role="img" aria-label={`Xu hướng doanh thu từ ${reportStartDate} đến ${reportEndDate}`}>
                 <defs><linearGradient id="report-revenue-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--primary)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--primary)" stopOpacity="0" /></linearGradient></defs>
                 <line x1="4" x2="346" y1="24" y2="24" /><line x1="4" x2="346" y1="83" y2="83" /><line x1="4" x2="346" y1="142" y2="142" />
                 <path d={revenueArea} className="report-area" /><polyline points={revenuePoints} className="report-line" /><circle cx={lastRevenuePoint[0]} cy={lastRevenuePoint[1]} r="4" />

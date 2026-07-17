@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "migrate:product-images": "node scripts/migrate-product-images-to-webp.mjs"
+    "migrate:product-images": "node scripts/migrate-product-images-to-webp.mjs",
+    "backfill:loyalty": "node scripts/backfill-loyalty-points.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

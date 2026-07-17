@@ -18,7 +18,7 @@ import { ConfirmationDialog, DialogSurface, OverlayBackdrop } from './components
 import { FilterSelect, FormField, FormSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
 import { ProductService, type Product, type ProductInput } from './services/ProductService'
-import { validateProductImageFile } from './services/ImageService'
+import { validateProductImageFile, type ImageUploadStatus } from './services/ImageService'
 import { formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 
@@ -76,6 +76,8 @@ function ProductDialog({
   const [category, setCategory] = useState(product?.category ?? categories[0] ?? '')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState(product?.imagePath ?? '')
+  const [imageUploadStatus, setImageUploadStatus] = useState<ImageUploadStatus | 'idle'>('idle')
+  const [isSaving, setIsSaving] = useState(false)
   
   const [variants, setVariants] = useState(
     product?.variantList?.length
@@ -136,6 +138,8 @@ function ProductDialog({
           event.preventDefault()
           const form = new FormData(event.currentTarget)
           setSaveError('')
+          setIsSaving(true)
+          if (imageFile) setImageUploadStatus('processing')
           try {
             await onSave({
               name: String(form.get('name')),
@@ -144,6 +148,7 @@ function ProductDialog({
               category,
               status: String(form.get('status')) as ProductInput['status'],
               imageFile,
+              onImageUploadStatus: setImageUploadStatus,
               variants: variants.map(v => ({
                 id: v.id.includes('-') ? v.id : undefined,
                 sku: v.sku,
@@ -155,6 +160,9 @@ function ProductDialog({
             })
           } catch (error: any) {
             setSaveError(error.message || 'Không thể lưu sản phẩm. Vui lòng thử lại.')
+          } finally {
+            setIsSaving(false)
+            setImageUploadStatus('idle')
           }
         }}>
           <div className="dialog-scroll-body">
@@ -173,9 +181,10 @@ function ProductDialog({
                   {imagePreview ? <img src={imagePreview} alt="Xem trước ảnh sản phẩm" /> : <ImagePlus aria-hidden="true" />}
                 </div>
                 <div className="product-image-actions">
-                  <label><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} /><ImagePlus aria-hidden="true" /> Chọn ảnh</label>
-                  <label><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleImageChange} /><Camera aria-hidden="true" /> Chụp ảnh</label>
+                  <label className="product-image-capture"><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={handleImageChange} disabled={isSaving} /><Camera aria-hidden="true" /> Chụp ảnh sản phẩm</label>
+                  <label><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={handleImageChange} disabled={isSaving} /><ImagePlus aria-hidden="true" /> Chọn ảnh có sẵn</label>
                 </div>
+                {imageUploadStatus !== 'idle' && <p className="product-image-status" role="status">{imageUploadStatus === 'processing' ? 'Đang xử lý và tối ưu ảnh…' : imageUploadStatus === 'uploading' ? 'Đang tải ảnh lên…' : 'Đã tải ảnh lên.'}</p>}
               </div>
               <div className="variants-section">
                 <div className="variants-section-header">
@@ -230,7 +239,7 @@ function ProductDialog({
           </div>
           <footer className="dialog-footer">
             <button className="dialog-cancel" type="button" onClick={onClose}>Hủy</button>
-            <button className="dialog-submit" type="submit">{isEdit ? 'Lưu thay đổi' : 'Thêm sản phẩm'}</button>
+            <button className="dialog-submit" type="submit" disabled={isSaving}>{isSaving ? (imageFile ? 'Đang lưu ảnh…' : 'Đang lưu…') : isEdit ? 'Lưu thay đổi' : 'Thêm sản phẩm'}</button>
           </footer>
         </form>
       </DialogSurface>

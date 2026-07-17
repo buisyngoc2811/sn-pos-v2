@@ -62,27 +62,29 @@ type PersistedPosCart = {
   cart: PosCartItem[]
   discountInput: string
   appliedDiscount: { type: 'none' | 'fixed' | 'percent', value: number }
+  checkoutRequestId: string | null
 }
 
 const emptyDiscount: PersistedPosCart['appliedDiscount'] = { type: 'none', value: 0 }
 
 const readPersistedCart = (): PersistedPosCart => {
   if (typeof window === 'undefined') {
-    return { cart: [], discountInput: '', appliedDiscount: emptyDiscount }
+    return { cart: [], discountInput: '', appliedDiscount: emptyDiscount, checkoutRequestId: null }
   }
 
   try {
     const raw = window.sessionStorage.getItem(posCartStorageKey)
-    if (!raw) return { cart: [], discountInput: '', appliedDiscount: emptyDiscount }
+    if (!raw) return { cart: [], discountInput: '', appliedDiscount: emptyDiscount, checkoutRequestId: null }
 
     const parsed = JSON.parse(raw) as Partial<PersistedPosCart>
     return {
       cart: Array.isArray(parsed.cart) ? parsed.cart : [],
       discountInput: typeof parsed.discountInput === 'string' ? parsed.discountInput : '',
       appliedDiscount: parsed.appliedDiscount?.type ? parsed.appliedDiscount : emptyDiscount,
+      checkoutRequestId: typeof parsed.checkoutRequestId === 'string' ? parsed.checkoutRequestId : null,
     }
   } catch {
-    return { cart: [], discountInput: '', appliedDiscount: emptyDiscount }
+    return { cart: [], discountInput: '', appliedDiscount: emptyDiscount, checkoutRequestId: null }
   }
 }
 
@@ -147,11 +149,13 @@ export function PosPage() {
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [discountInput, setDiscountInput] = useState(persistedCart.discountInput)
   const [appliedDiscount, setAppliedDiscount] = useState<{ type: 'none' | 'fixed' | 'percent', value: number }>(persistedCart.appliedDiscount)
+  const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(persistedCart.checkoutRequestId)
   const [variantSelectorProduct, setVariantSelectorProduct] = useState<PosProduct | null>(null)
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false)
   const [showMobileCartFeedback, setShowMobileCartFeedback] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const checkoutRef = useRef<HTMLButtonElement>(null)
+  const checkoutInFlightRef = useRef(false)
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
@@ -243,8 +247,8 @@ export function PosPage() {
   }, [showMobileCartFeedback])
 
   useEffect(() => {
-    writePersistedCart({ cart, discountInput, appliedDiscount })
-  }, [appliedDiscount, cart, discountInput])
+    writePersistedCart({ cart, discountInput, appliedDiscount, checkoutRequestId })
+  }, [appliedDiscount, cart, checkoutRequestId, discountInput])
 
   const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0)
   
@@ -411,6 +415,7 @@ export function PosPage() {
     const val = discountInput.trim()
     if (!val) {
       setAppliedDiscount({ type: 'none', value: 0 })
+      setCheckoutRequestId(null)
       return
     }
     
@@ -425,6 +430,7 @@ export function PosPage() {
         return
       }
       setAppliedDiscount({ type: 'percent', value: num })
+      setCheckoutRequestId(null)
     } else {
       const num = parseInt(val.replace(/\D/g, ''), 10)
       if (isNaN(num) || num < 0) {
@@ -436,6 +442,7 @@ export function PosPage() {
         return
       }
       setAppliedDiscount({ type: 'fixed', value: num })
+      setCheckoutRequestId(null)
     }
   }
 
@@ -471,6 +478,7 @@ export function PosPage() {
         quantity: 1 
       }]
     })
+    setCheckoutRequestId(null)
     setVariantSelectorProduct(null)
     if (window.matchMedia('(max-width: 899px)').matches) {
       setShowMobileCartFeedback(true)
@@ -478,6 +486,7 @@ export function PosPage() {
   }
 
   const updateQuantity = (id: string, difference: number) => {
+    setCheckoutRequestId(null)
     setCart((current) =>
       current
         .map((item) =>
@@ -490,6 +499,7 @@ export function PosPage() {
   }
 
   const removeItem = (id: string) => {
+    setCheckoutRequestId(null)
     setCart((current) => current.filter((item) => item.id !== id))
   }
 
@@ -497,7 +507,8 @@ export function PosPage() {
     setCart([])
     setDiscountInput('')
     setAppliedDiscount(emptyDiscount)
-    writePersistedCart({ cart: [], discountInput: '', appliedDiscount: emptyDiscount })
+    setCheckoutRequestId(null)
+    writePersistedCart({ cart: [], discountInput: '', appliedDiscount: emptyDiscount, checkoutRequestId: null })
   }
 
   const handleCheckout = () => {
@@ -512,11 +523,17 @@ export function PosPage() {
   }
 
   const confirmCheckout = async () => {
-    if (cart.length === 0) return
+    if (cart.length === 0 || checkoutInFlightRef.current) return
     if (paymentMethod === 'bank_transfer_qr' && !transferReceived) return
+    checkoutInFlightRef.current = true
     setIsCheckingOut(true)
     try {
-      const result = await PosService.checkout(cart, subtotal, discountVnd, tax, total, paymentMethod, selectedCustomer?.id)
+      const requestId = checkoutRequestId ?? crypto.randomUUID()
+      if (!checkoutRequestId) {
+        setCheckoutRequestId(requestId)
+        writePersistedCart({ cart, discountInput, appliedDiscount, checkoutRequestId: requestId })
+      }
+      const result = await PosService.checkout(cart, subtotal, discountVnd, tax, total, paymentMethod, requestId, selectedCustomer?.id)
       if (result) {
         setReceipt({
           orderNumber: result.orderNumber,
@@ -531,12 +548,14 @@ export function PosPage() {
         setIsPaymentOpen(false)
         setIsQrPaymentOpen(false)
         clearCart()
+        if (selectedCustomer) window.dispatchEvent(new CustomEvent('sn-pos-v2:customer-updated'))
         const prods = await PosService.getProducts()
         setProducts(prods)
       }
     } catch (e: any) {
       alert(e.message || 'Thanh toán thất bại')
     } finally {
+      checkoutInFlightRef.current = false
       setIsCheckingOut(false)
     }
   }
@@ -576,6 +595,7 @@ export function PosPage() {
         phone: customer.phone ?? '',
       }
       setSelectedCustomer(nextCustomer)
+      setCheckoutRequestId(null)
       setIsCustomerOpen(false)
       setCustomerQuery('')
       setNewCustomerName('')
@@ -911,6 +931,7 @@ export function PosPage() {
                     type="button"
                     onClick={() => {
                       setSelectedCustomer(customer)
+                      setCheckoutRequestId(null)
                       setIsCustomerOpen(false)
                     }}
                   >
@@ -941,6 +962,7 @@ export function PosPage() {
             <footer className="receipt-actions">
               <button type="button" className="receipt-secondary-button" disabled={isSavingCustomer} onClick={() => {
                 setSelectedCustomer(null)
+                setCheckoutRequestId(null)
                 setIsCustomerOpen(false)
               }}>
                 Bỏ qua - Khách lẻ

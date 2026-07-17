@@ -69,7 +69,7 @@ function OrderDrawer({ order, onClose }: { order: Order; onClose: () => void }) 
           <section className="drawer-section">
             <header><h3>Dòng thời gian</h3></header>
             <ol className="order-timeline">
-              {order.status === 'Đã hoàn tiền' && <li className="refund"><span><RotateCcw /></span><div><strong>Đã hoàn tiền đơn hàng</strong><small>{formatDate('2026-07-09')} · {formatTime('10:03')}</small></div></li>}
+              {order.status === 'Đã hoàn tiền' && <li className="refund"><span><RotateCcw /></span><div><strong>Đã hoàn tiền đơn hàng</strong><small>{formatDate(order.date)} · {formatTime(order.time)}</small></div></li>}
               <li><span><CircleCheck /></span><div><strong>Đã nhận thanh toán</strong><small>{formatDate(order.date)} · {formatTime(order.time)}</small></div></li>
               <li><span><ReceiptText /></span><div><strong>Đã tạo đơn hàng</strong><small>{formatDate(order.date)} · {formatTime(order.time)}</small></div></li>
             </ol>
@@ -130,6 +130,8 @@ export function OrdersPage() {
   const heldOrders = orders.filter((order) => order.status === 'Tạm giữ').length
   const completedRevenue = completedOrders.reduce((total, order) => total + order.total, 0)
   const refundedRevenue = orders.filter((order) => order.status === 'Đã hoàn tiền').reduce((total, order) => total + order.total, 0)
+  const orderDates = orders.map((order) => order.date).sort()
+  const orderDateRange = orderDates.length ? `${formatDate(orderDates[0])}–${formatDate(orderDates.at(-1) ?? orderDates[0])}` : 'Chưa có đơn hàng'
 
   return (
     <div className="orders-page">
@@ -137,11 +139,11 @@ export function OrdersPage() {
         kicker="Lịch sử bán hàng"
         title="Đơn hàng"
         description="Xem giao dịch, thanh toán và trạng thái đơn hàng."
-        action={<span className="orders-date"><Clock3 /> {formatDate('2026-07-08')}–{formatDate('2026-07-09')}</span>}
+        action={<span className="orders-date"><Clock3 /> {orderDateRange}</span>}
       />
 
       <section className="orders-stats">
-        <div><span>Đơn hàng hôm nay</span><strong>{formatNumber(todayOrders)}</strong><small>5 nhiều hơn hôm qua</small></div>
+        <div><span>Đơn hàng hôm nay</span><strong>{formatNumber(todayOrders)}</strong><small>Dữ liệu trực tiếp hôm nay</small></div>
         <div><span>Hoàn tất</span><strong>{formatNumber(completedOrders.length)}</strong><small>{formatVnd(completedRevenue)} đã thu</small></div>
         <div><span>Tạm giữ</span><strong>{formatNumber(heldOrders)}</strong><small>Đang chờ hoàn tất</small></div>
         <div><span>Đã hoàn tiền</span><strong>{formatNumber(refundedOrders)}</strong><small>{formatVnd(refundedRevenue)} đã hoàn lại</small></div>
