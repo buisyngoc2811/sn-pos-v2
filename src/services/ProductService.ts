@@ -1,5 +1,5 @@
 import { supabase, handleServiceError } from '../utils/supabase'
-import { ImageService, type ImageUploadStatus } from './ImageService'
+import { ImageService, type ImageUploadNotice, type ImageUploadStatus } from './ImageService'
 import { getStoragePublicUrl, STORAGE_BUCKETS } from './storageBuckets'
 
 export type ProductStatus = 'Đang bán' | 'Bản nháp' | 'Đã lưu trữ'
@@ -35,6 +35,7 @@ export type ProductInput = {
   description?: string | null
   imageFile?: File | null
   onImageUploadStatus?: (status: ImageUploadStatus) => void
+  onImageUploadNotice?: (notice: ImageUploadNotice) => void
   variants: Array<{
     id?: string
     sku: string
@@ -163,7 +164,7 @@ export const ProductService = {
       let image_path = null
       
       if (input.imageFile) {
-        image_path = await ImageService.uploadImage(input.imageFile, undefined, input.onImageUploadStatus)
+        image_path = await ImageService.uploadImage(input.imageFile, undefined, input.onImageUploadStatus, input.onImageUploadNotice)
       }
 
       const { data: product, error: productError } = await supabase
@@ -212,7 +213,7 @@ export const ProductService = {
       
       let newImagePath = undefined
       if (input.imageFile) {
-        newImagePath = await ImageService.uploadImage(input.imageFile, undefined, input.onImageUploadStatus)
+        newImagePath = await ImageService.uploadImage(input.imageFile, undefined, input.onImageUploadStatus, input.onImageUploadNotice)
       }
 
       // Get old image to delete later

@@ -63,12 +63,14 @@ function ProductDialog({
   product,
   categories,
   onSave,
+  onImageFallback,
   onClose,
 }: {
   mode: 'add' | 'edit'
   product?: Product
   categories: string[]
   onSave: (input: ProductInput) => Promise<void>
+  onImageFallback: () => void
   onClose: () => void
 }) {
   const isEdit = mode === 'edit'
@@ -77,6 +79,7 @@ function ProductDialog({
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState(product?.imagePath ?? '')
   const [imageUploadStatus, setImageUploadStatus] = useState<ImageUploadStatus | 'idle'>('idle')
+  const [imageProcessingNotice, setImageProcessingNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   
   const [variants, setVariants] = useState(
@@ -114,6 +117,7 @@ function ProductDialog({
     try {
       validateProductImageFile(file)
       setSaveError('')
+      setImageProcessingNotice('')
     } catch (error) {
       event.target.value = ''
       setSaveError(error instanceof Error ? error.message : 'Không thể sử dụng ảnh này.')
@@ -149,6 +153,12 @@ function ProductDialog({
               status: String(form.get('status')) as ProductInput['status'],
               imageFile,
               onImageUploadStatus: setImageUploadStatus,
+              onImageUploadNotice: (notice) => {
+                if (notice === 'jpeg-fallback') {
+                  setImageProcessingNotice('Thiết bị không hỗ trợ WebP, ảnh đã được tối ưu và lưu dưới dạng JPEG.')
+                  onImageFallback()
+                }
+              },
               variants: variants.map(v => ({
                 id: v.id.includes('-') ? v.id : undefined,
                 sku: v.sku,
@@ -185,6 +195,7 @@ function ProductDialog({
                   <label><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={handleImageChange} disabled={isSaving} /><ImagePlus aria-hidden="true" /> Chọn ảnh có sẵn</label>
                 </div>
                 {imageUploadStatus !== 'idle' && <p className="product-image-status" role="status">{imageUploadStatus === 'processing' ? 'Đang xử lý và tối ưu ảnh…' : imageUploadStatus === 'uploading' ? 'Đang tải ảnh lên…' : 'Đã tải ảnh lên.'}</p>}
+                {imageProcessingNotice && <p className="product-image-status" role="status">{imageProcessingNotice}</p>}
               </div>
               <div className="variants-section">
                 <div className="variants-section-header">
@@ -406,6 +417,7 @@ export function ProductsPage() {
         mode={dialog}
         product={selectedProduct ?? undefined}
         categories={categories}
+        onImageFallback={() => setProductMessage('Thiết bị không hỗ trợ WebP; ảnh đã được tối ưu và lưu dưới dạng JPEG.')}
         onSave={async (input) => {
           if (dialog === 'edit' && selectedProduct) {
             await ProductService.update(selectedProduct.id, input)

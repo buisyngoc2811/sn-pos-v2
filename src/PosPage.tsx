@@ -55,6 +55,43 @@ const paymentOptions: Array<{ value: PosPaymentMethod; label: string }> = [
   { value: 'bank_transfer_qr', label: 'Chuyển khoản / QR' },
 ]
 
+type CapacitorBridge = {
+  isNativePlatform?: () => boolean
+  getPlatform?: () => string
+}
+
+function isNativeCapacitorPlatform() {
+  const capacitor = (window as Window & { Capacitor?: CapacitorBridge }).Capacitor
+  return capacitor?.isNativePlatform?.() === true || capacitor?.getPlatform?.() === 'android'
+}
+
+function logPrintFailure(stage: string, error: unknown) {
+  if (!import.meta.env.DEV) return
+  console.warn('Receipt print failed.', { stage, error: error instanceof Error ? error.message : String(error) })
+}
+
+const wait = (milliseconds: number) => new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
+
+async function waitForPrintDocument(document: Document) {
+  if (document.readyState !== 'complete') {
+    await Promise.race([
+      new Promise<void>((resolve) => document.defaultView?.addEventListener('load', () => resolve(), { once: true })),
+      wait(1200),
+    ])
+  }
+
+  const fonts = (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts
+  if (fonts?.ready) await Promise.race([fonts.ready.then(() => undefined), wait(1200)])
+
+  await Promise.all([...document.images].map((image) => image.complete
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => {
+      image.addEventListener('load', () => resolve(), { once: true })
+      image.addEventListener('error', () => resolve(), { once: true })
+    })))
+  await wait(50)
+}
+
 const missingBankValue = 'Chưa thiết lập'
 const posCartStorageKey = 'sn-pos-v2:pos-cart'
 
@@ -158,6 +195,7 @@ export function PosPage() {
   const checkoutInFlightRef = useRef(false)
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [printError, setPrintError] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -284,17 +322,13 @@ export function PosPage() {
     return `https://api.vietqr.io/image/${encodeURIComponent(bankCode)}-${encodeURIComponent(bankAccountNumber.trim())}-compact2.png?${params.toString()}`
   }, [bankAccountHolder, bankAccountNumber, bankName, isBankInfoMissing, total, transferNote])
 
-  const printReceipt = () => {
+  const printReceipt = async () => {
     if (!receipt) return
 
-    const printWindow = window.open('', 'sn-pos-thermal-receipt', 'popup=yes,width=420,height=700')
-    if (!printWindow) {
-      window.alert('Không thể mở cửa sổ in. Vui lòng cho phép cửa sổ bật lên rồi thử lại.')
-      return
-    }
-
+    setPrintError('')
     const [datePart, timePart = ''] = receipt.completedAt.split('T')
     const paymentLabel = paymentOptions.find((option) => option.value === receipt.paymentMethod)?.label ?? '—'
+    const storeLogoUrl = SettingsService.getStoreAssetUrl(storeSettings?.store_logo_path ?? '')
     const receiptRows = receipt.cart.map((item) => `
       <div class="receipt-item">
         <strong>${escapeReceiptHtml(item.name)}</strong>
@@ -304,8 +338,7 @@ export function PosPage() {
       </div>
     `).join('')
 
-    printWindow.document.open()
-    printWindow.document.write(`<!doctype html>
+    const receiptHtml = `<!doctype html>
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
@@ -335,6 +368,7 @@ export function PosPage() {
         page-break-inside: avoid;
       }
       .receipt-header { padding: 0 0 2.5mm; border-bottom: 1px dashed #9a9a9a; text-align: center; }
+      .store-logo { display: block; width: auto; max-width: 28mm; max-height: 12mm; margin: 0 auto 1.5mm; object-fit: contain; }
       .store-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
       .receipt-header h1 { margin: 1.5mm 0 .5mm; font-size: 12px; }
       .receipt-header p, .receipt-header small { display: block; margin: 0; color: #3f3f3f; }
@@ -376,6 +410,7 @@ export function PosPage() {
   <body>
     <main class="receipt">
       <header class="receipt-header">
+        ${storeLogoUrl ? `<img class="store-logo" src="${escapeReceiptHtml(storeLogoUrl)}" alt="" />` : ''}
         <strong class="store-name">${escapeReceiptHtml(storeSettings?.store_name ?? 'SN Store')}</strong>
         <h1>Thanh toán thành công</h1>
         <p>Đơn hàng #${escapeReceiptHtml(receipt.orderNumber)}</p>
@@ -398,17 +433,76 @@ export function PosPage() {
       </dl>
       <p class="receipt-footer">Cảm ơn quý khách và hẹn gặp lại.</p>
     </main>
-    <script>
-      window.addEventListener('load', function () {
-        window.setTimeout(function () { window.print(); }, 50);
-      });
-      window.addEventListener('afterprint', function () {
-        window.setTimeout(function () { window.close(); }, 0);
-      });
-    </script>
   </body>
-</html>`)
-    printWindow.document.close()
+</html>`
+
+    const printIntoWindow = async (printWindow: Window, closeAfterPrint: boolean) => {
+      printWindow.document.open()
+      printWindow.document.write(receiptHtml)
+      printWindow.document.close()
+      await waitForPrintDocument(printWindow.document)
+      if (typeof printWindow.print !== 'function') throw new Error('The print method is unavailable')
+      const closeWindow = () => {
+        if (closeAfterPrint && !printWindow.closed) printWindow.close()
+      }
+      printWindow.addEventListener('afterprint', closeWindow, { once: true })
+      printWindow.focus()
+      printWindow.print()
+      if (closeAfterPrint) window.setTimeout(closeWindow, 5000)
+    }
+
+    const printIntoIframe = async () => {
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('title', 'Hóa đơn in')
+      iframe.setAttribute('aria-hidden', 'true')
+      iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:80mm;height:1px;border:0;opacity:0;pointer-events:none;'
+      document.body.appendChild(iframe)
+
+      const cleanup = () => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+      }
+
+      try {
+        const printDocument = iframe.contentDocument
+        const printWindow = iframe.contentWindow
+        if (!printDocument || !printWindow) throw new Error('The print frame is unavailable')
+        printDocument.open()
+        printDocument.write(receiptHtml)
+        printDocument.close()
+        await waitForPrintDocument(printDocument)
+        if (typeof printWindow.print !== 'function') throw new Error('The print method is unavailable')
+        printWindow.addEventListener('afterprint', cleanup, { once: true })
+        printWindow.focus()
+        printWindow.print()
+        window.setTimeout(cleanup, 5000)
+      } catch (error) {
+        cleanup()
+        throw error
+      }
+    }
+
+    const nativeCapacitor = isNativeCapacitorPlatform()
+    try {
+      if (!nativeCapacitor) {
+        const printWindow = window.open('', 'sn-pos-thermal-receipt', 'popup=yes,width=420,height=700')
+        if (printWindow) {
+          try {
+            await printIntoWindow(printWindow, true)
+            return
+          } catch (error) {
+            logPrintFailure('desktop-popup', error)
+            if (!printWindow.closed) printWindow.close()
+          }
+        }
+      }
+
+      await printIntoIframe()
+    } catch (error) {
+      logPrintFailure(nativeCapacitor ? 'capacitor-iframe' : 'iframe-fallback', error)
+      setPrintError(nativeCapacitor
+        ? 'Không thể mở hộp thoại in trên thiết bị. Hãy kiểm tra máy in rồi thử lại.'
+        : 'Không thể mở hộp thoại in. Vui lòng thử lại.')
+    }
   }
 
   const applyDiscount = () => {
@@ -535,6 +629,7 @@ export function PosPage() {
       }
       const result = await PosService.checkout(cart, subtotal, discountVnd, tax, total, paymentMethod, requestId, selectedCustomer?.id)
       if (result) {
+        setPrintError('')
         setReceipt({
           orderNumber: result.orderNumber,
           completedAt: result.completedAt,
@@ -1143,6 +1238,7 @@ export function PosPage() {
 
               <p className="receipt-thank-you">Cảm ơn quý khách và hẹn gặp lại.</p>
             </div>
+            {printError && <p className="dialog-error" role="alert">{printError}</p>}
             
             <footer className="receipt-actions print-hidden">
               <button type="button" className="receipt-print-button" onClick={printReceipt}>
