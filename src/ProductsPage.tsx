@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, type ChangeEvent } from 'react'
 import {
   Camera,
+  Archive,
   ChevronDown,
   Grid2X2,
   ImagePlus,
@@ -9,6 +10,7 @@ import {
   PackagePlus,
   Pencil,
   Plus,
+  RotateCcw,
   SlidersHorizontal,
   Trash2,
   X,
@@ -18,6 +20,7 @@ import { ConfirmationDialog, DialogSurface, OverlayBackdrop } from './components
 import { FilterSelect, FormField, FormSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
 import { ProductService, type Product, type ProductInput } from './services/ProductService'
+import { CategoryService, type ProductCategory } from './services/CategoryService'
 import { validateProductImageFile, type ImageUploadStatus } from './services/ImageService'
 import { formatVnd } from './utils/formatters'
 import './ProductsPage.css'
@@ -63,6 +66,7 @@ function ProductDialog({
   product,
   categories,
   onSave,
+  onCreateCategory,
   onImageFallback,
   onClose,
 }: {
@@ -70,6 +74,7 @@ function ProductDialog({
   product?: Product
   categories: string[]
   onSave: (input: ProductInput) => Promise<void>
+  onCreateCategory: (name: string) => Promise<string>
   onImageFallback: () => void
   onClose: () => void
 }) {
@@ -81,6 +86,9 @@ function ProductDialog({
   const [imageUploadStatus, setImageUploadStatus] = useState<ImageUploadStatus | 'idle'>('idle')
   const [imageProcessingNotice, setImageProcessingNotice] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+  const [categoryError, setCategoryError] = useState('')
   
   const [variants, setVariants] = useState(
     product?.variantList?.length
@@ -127,6 +135,24 @@ function ProductDialog({
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
   }
+
+  const createCategory = async () => {
+    setCategoryError('')
+    setIsCreatingCategory(true)
+    try {
+      const createdName = await onCreateCategory(newCategoryName)
+      setCategory(createdName)
+      setNewCategoryName('')
+    } catch (error) {
+      setCategoryError(error instanceof Error ? error.message : 'Không thể tạo danh mục.')
+    } finally {
+      setIsCreatingCategory(false)
+    }
+  }
+
+  const categoryOptions = product && !categories.includes(product.category)
+    ? [product.category, ...categories]
+    : categories
 
   return (
     <OverlayBackdrop className="dialog-backdrop" onClose={onClose}>
@@ -183,7 +209,23 @@ function ProductDialog({
               <FormField label="Mô tả sản phẩm" wide>
                 <textarea name="short_description" defaultValue={product?.short_description ?? ''} rows={3} placeholder="VD: Yếm cổ, hở lưng, họa tiết caro đỏ, phong cách Pháp/Âu Mỹ" />
               </FormField>
-              <FormSelect name="category" label="Danh mục" options={categories} value={category} onChange={(event) => setCategory(event.target.value)} />
+              <div className="product-category-field">
+                <FormSelect name="category" label="Danh mục" options={categoryOptions} value={category} onChange={(event) => setCategory(event.target.value)} />
+                <div className="inline-category-create">
+                  <input
+                    value={newCategoryName}
+                    onChange={(event) => setNewCategoryName(event.target.value)}
+                    placeholder="Tên danh mục mới"
+                    aria-label="Tên danh mục mới"
+                    disabled={isSaving || isCreatingCategory}
+                  />
+                  <button type="button" onClick={createCategory} disabled={!newCategoryName.trim() || isSaving || isCreatingCategory}>
+                    <Plus aria-hidden="true" /> {isCreatingCategory ? 'Đang tạo…' : 'Tạo danh mục mới'}
+                  </button>
+                </div>
+                {categoryOptions.length === 0 && <p className="category-field-note">Chưa có danh mục đang hoạt động. Hãy tạo danh mục mới để tiếp tục.</p>}
+                {categoryError && <p className="category-field-error" role="alert">{categoryError}</p>}
+              </div>
               <FormSelect name="status" label="Trạng thái" options={statuses.slice(1)} defaultValue={product?.status ?? 'Đang bán'} />
               <div className="product-image-picker">
                 <span>Ảnh sản phẩm</span>
@@ -258,21 +300,94 @@ function ProductDialog({
   )
 }
 
+function CategoryManagement({ categories, onChanged }: { categories: ProductCategory[], onChanged: () => Promise<void> }) {
+  const [newName, setNewName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [isWorking, setIsWorking] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const run = async (action: () => Promise<void>, successMessage: string) => {
+    setMessage('')
+    setIsWorking(true)
+    try {
+      await action()
+      await onChanged()
+      setMessage(successMessage)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không thể cập nhật danh mục.')
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  return (
+    <section className="category-manager" aria-labelledby="category-manager-title">
+      <header className="category-manager-header">
+        <div><span>Thiết lập cửa hàng</span><h2 id="category-manager-title">Danh mục sản phẩm</h2><p>Tạo và sắp xếp các nhóm hiển thị trong sản phẩm, tồn kho và POS.</p></div>
+        <form className="category-create-form" onSubmit={(event) => {
+          event.preventDefault()
+          void run(async () => {
+            await CategoryService.create(newName)
+            setNewName('')
+          }, 'Đã thêm danh mục mới.')
+        }}>
+          <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Ví dụ: Phụ kiện" aria-label="Tên danh mục mới" disabled={isWorking} />
+          <button type="submit" disabled={!newName.trim() || isWorking}><Plus aria-hidden="true" /> Thêm</button>
+        </form>
+      </header>
+      {message && <p className="category-manager-message" role="status">{message}</p>}
+      <div className="category-list" aria-live="polite">
+        {categories.length === 0 ? <p className="category-empty">Chưa có danh mục. Thêm danh mục đầu tiên để bắt đầu tạo sản phẩm.</p> : categories.map((item) => (
+          <article className={`category-row${item.is_active ? '' : ' is-archived'}`} key={item.id}>
+            <div className="category-row-main">
+              {editingId === item.id ? <input value={editingName} onChange={(event) => setEditingName(event.target.value)} aria-label={`Đổi tên ${item.name}`} autoFocus /> : <strong>{item.name}</strong>}
+              <small>{item.productCount} sản phẩm {item.is_active ? '· Đang hoạt động' : '· Đã lưu trữ'}</small>
+            </div>
+            <div className="category-row-actions">
+              {editingId === item.id ? <>
+                <button type="button" onClick={() => void run(async () => {
+                  await CategoryService.rename(item.id, editingName)
+                  setEditingId(null)
+                }, 'Đã đổi tên danh mục.')} disabled={isWorking || !editingName.trim()}>Lưu</button>
+                <button type="button" onClick={() => setEditingId(null)} disabled={isWorking}>Hủy</button>
+              </> : <>
+                <button type="button" onClick={() => { setEditingId(item.id); setEditingName(item.name) }} disabled={isWorking}><Pencil aria-hidden="true" /> Đổi tên</button>
+                <button type="button" onClick={() => void run(() => CategoryService.setActive(item.id, !item.is_active), item.is_active ? 'Đã lưu trữ danh mục.' : 'Đã khôi phục danh mục.')} disabled={isWorking}>
+                  {item.is_active ? <Archive aria-hidden="true" /> : <RotateCcw aria-hidden="true" />} {item.is_active ? 'Lưu trữ' : 'Khôi phục'}
+                </button>
+                <button type="button" className="category-delete" title={item.productCount > 0 ? `Không thể xóa: đang có ${item.productCount} sản phẩm sử dụng danh mục này.` : undefined} onClick={() => {
+                  if (window.confirm(`Xóa danh mục “${item.name}”? Thao tác này không thể hoàn tác.`)) {
+                    void run(() => CategoryService.delete(item), 'Đã xóa danh mục.')
+                  }
+                }} disabled={isWorking}><Trash2 aria-hidden="true" /> Xóa</button>
+              </>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<string[]>([])
+  const [categoryRecords, setCategoryRecords] = useState<ProductCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   const loadProducts = async () => {
     try {
       setLoading(true)
-      const [productData, categoryData] = await Promise.all([
+      const [productData, categoryData, categoryRecordsData] = await Promise.all([
         ProductService.getAll(),
         ProductService.getCategories(),
+        CategoryService.getAll(),
       ])
       setProducts(productData)
       setCategories(categoryData)
+      setCategoryRecords(categoryRecordsData)
     } catch (e: any) {
       setError(e)
     } finally {
@@ -343,11 +458,13 @@ export function ProductsPage() {
       {productMessage && <p className="products-toast" role="status">{productMessage}</p>}
 
       <section className="products-stats" aria-label="Tổng hợp sản phẩm">
-        <div><span>Tất cả sản phẩm</span><strong>{products.length}</strong><small>Trong 4 danh mục</small></div>
+        <div><span>Tất cả sản phẩm</span><strong>{products.length}</strong><small>Trong {categories.length} danh mục</small></div>
         <div><span>Đang bán</span><strong>{products.filter((product) => product.status === 'Đang bán').length}</strong><small>Hiển thị khi thanh toán</small></div>
         <div><span>Sắp hết hàng</span><strong>{products.filter((product) => product.stock > 0 && product.stock <= 5).length}</strong><small>Cần xử lý</small></div>
         <div><span>Hết hàng</span><strong>{products.filter((product) => product.stock === 0).length}</strong><small>Không thể bán</small></div>
       </section>
+
+      <CategoryManagement categories={categoryRecords} onChanged={loadProducts} />
 
       <section className="products-panel">
         <header className="products-toolbar">
@@ -417,6 +534,12 @@ export function ProductsPage() {
         mode={dialog}
         product={selectedProduct ?? undefined}
         categories={categories}
+        onCreateCategory={async (name) => {
+          const created = await CategoryService.create(name)
+          await loadProducts()
+          setProductMessage(`Đã tạo danh mục “${created.name}”.`)
+          return created.name
+        }}
         onImageFallback={() => setProductMessage('Thiết bị không hỗ trợ WebP; ảnh đã được tối ưu và lưu dưới dạng JPEG.')}
         onSave={async (input) => {
           if (dialog === 'edit' && selectedProduct) {

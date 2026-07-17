@@ -36,7 +36,7 @@ const toVndInteger = (value: number) => Math.round(Number.isFinite(value) ? valu
 export const PosService = {
   async getCategories(): Promise<string[]> {
     try {
-      const { data, error } = await supabase.from('categories').select('name').order('sort_order')
+      const { data, error } = await supabase.from('categories').select('name').eq('is_active', true).order('sort_order')
       if (error) handleServiceError(error)
       return ['Tất cả', ...(data || []).map(c => c.name)]
     } catch (e) {

@@ -102,6 +102,7 @@ export const InventoryService = {
       const { data, error } = await supabase
         .from('categories')
         .select('name')
+        .eq('is_active', true)
         .order('sort_order')
 
       if (error) handleServiceError(error)

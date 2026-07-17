@@ -39,7 +39,6 @@ export const products: Product[] = [
   { id: 10, name: 'Chân váy lụa dự tiệc', category: 'Quần & váy', sku: 'SK-008', variants: '3 kích cỡ', stock: 0, price: 860000, status: 'Đã lưu trữ', position: '100% 0%' },
 ]
 
-export const productCategories = ['Tất cả danh mục', 'Áo', 'Quần & váy', 'Đầm', 'Áo khoác']
 export const productStatuses = ['Tất cả trạng thái', 'Đang bán', 'Bản nháp', 'Đã lưu trữ']
 
 export type PosProduct = {
@@ -56,7 +55,6 @@ export type PosProduct = {
 
 export type PosCartItem = PosProduct & { quantity: number }
 
-export const posCategories = ['Tất cả', 'Hàng mới', 'Áo', 'Quần & váy', 'Đầm', 'Áo khoác']
 
 export const posProducts: PosProduct[] = [
   { id: 1, name: 'Áo cardigan len gân', category: 'Áo', size: 'S–L', stock: 8, price: 680000, position: '0% 0%' },
@@ -107,7 +105,6 @@ export const inventoryMovements = [
   { product: 'Quần linen ống rộng', detail: 'Đơn hàng #1046', amount: -1, time: '09:56', type: 'out' },
 ]
 
-export const inventoryCategories = ['Tất cả danh mục', 'Áo', 'Quần & váy', 'Đầm', 'Áo khoác']
 export const inventoryStockFilters = ['Tất cả tồn kho', 'Còn hàng', 'Sắp hết hàng', 'Hết hàng']
 
 export type OrderStatus = 'Hoàn tất' | 'Đã hoàn tiền' | 'Tạm giữ'

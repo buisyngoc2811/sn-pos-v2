@@ -83,13 +83,16 @@ const statusToDatabase: Record<ProductStatus, ProductRow['status']> = {
 
 const positions = ['0% 0%', '33.333% 0%', '66.666% 0%', '100% 0%', '0% 100%', '33.333% 100%', '66.666% 100%', '100% 100%']
 
-async function getCategoryId(category: string) {
+async function getCategoryId(category: string, allowInactive = false) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('categories')
       .select('id')
       .eq('name', category)
-      .single()
+
+    if (!allowInactive) query = query.eq('is_active', true)
+
+    const { data, error } = await query.single()
 
     if (error) handleServiceError(error)
     if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ máy chủ')
@@ -145,6 +148,7 @@ export const ProductService = {
       const { data, error } = await supabase
         .from('categories')
         .select('name')
+        .eq('is_active', true)
         .order('sort_order')
 
       if (error) handleServiceError(error)
@@ -209,7 +213,7 @@ export const ProductService = {
     if (!input.category?.trim()) throw new Error('Danh mục không được để trống')
 
     try {
-      const categoryId = await getCategoryId(input.category)
+      const categoryId = await getCategoryId(input.category, true)
       
       let newImagePath = undefined
       if (input.imageFile) {
