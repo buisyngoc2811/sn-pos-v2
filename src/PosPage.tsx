@@ -25,6 +25,30 @@ import { DialogSurface, OverlayBackdrop } from './components/OverlayBackdrop'
 import { formatDate, formatTime, formatVnd } from './utils/formatters'
 import './PosPage.css'
 
+type ReceiptData = {
+  orderNumber: string
+  completedAt: string
+  cart: PosCartItem[]
+  subtotal: number
+  discount: number
+  tax: number
+  total: number
+  paymentMethod: PosPaymentMethod
+}
+
+const escapeReceiptHtml = (value: string | number) =>
+  String(value).replace(/[&<>'"]/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    }
+
+    return entities[character]
+  })
+
 const paymentOptions: Array<{ value: PosPaymentMethod; label: string }> = [
   { value: 'cash', label: 'Tiền mặt' },
   { value: 'card', label: 'Thẻ' },
@@ -129,16 +153,7 @@ export function PosPage() {
   const searchRef = useRef<HTMLInputElement>(null)
   const checkoutRef = useRef<HTMLButtonElement>(null)
 
-  const [receipt, setReceipt] = useState<{
-    orderNumber: string
-    completedAt: string
-    cart: PosCartItem[]
-    subtotal: number
-    discount: number
-    tax: number
-    total: number
-    paymentMethod: PosPaymentMethod
-  } | null>(null)
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -264,6 +279,133 @@ export function PosPage() {
     })
     return `https://api.vietqr.io/image/${encodeURIComponent(bankCode)}-${encodeURIComponent(bankAccountNumber.trim())}-compact2.png?${params.toString()}`
   }, [bankAccountHolder, bankAccountNumber, bankName, isBankInfoMissing, total, transferNote])
+
+  const printReceipt = () => {
+    if (!receipt) return
+
+    const printWindow = window.open('', 'sn-pos-thermal-receipt', 'popup=yes,width=420,height=700')
+    if (!printWindow) {
+      window.alert('Không thể mở cửa sổ in. Vui lòng cho phép cửa sổ bật lên rồi thử lại.')
+      return
+    }
+
+    const [datePart, timePart = ''] = receipt.completedAt.split('T')
+    const paymentLabel = paymentOptions.find((option) => option.value === receipt.paymentMethod)?.label ?? '—'
+    const receiptRows = receipt.cart.map((item) => `
+      <div class="receipt-item">
+        <strong>${escapeReceiptHtml(item.name)}</strong>
+        <span class="receipt-quantity">${escapeReceiptHtml(item.quantity)}</span>
+        <span class="receipt-unit-price">${escapeReceiptHtml(formatVnd(item.price))}</span>
+        <span class="receipt-amount">${escapeReceiptHtml(formatVnd(item.price * item.quantity))}</span>
+      </div>
+    `).join('')
+
+    printWindow.document.open()
+    printWindow.document.write(`<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hóa đơn #${escapeReceiptHtml(receipt.orderNumber)}</title>
+    <style>
+      @page { size: 80mm auto; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body {
+        width: 80mm;
+        min-width: 80mm;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: #111;
+      }
+      body { font: 11px/1.4 Arial, Helvetica, sans-serif; }
+      .receipt {
+        width: 80mm;
+        max-width: 80mm;
+        min-height: 0;
+        margin: 0;
+        padding: 4mm;
+        background: #fff;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .receipt-header { padding: 0 0 2.5mm; border-bottom: 1px dashed #9a9a9a; text-align: center; }
+      .store-name { display: block; font-size: 15px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
+      .receipt-header h1 { margin: 1.5mm 0 .5mm; font-size: 12px; }
+      .receipt-header p, .receipt-header small { display: block; margin: 0; color: #3f3f3f; }
+      .receipt-meta, .receipt-summary { display: grid; gap: 1mm; margin: 2.5mm 0; }
+      .receipt-meta { padding-bottom: 2.5mm; border-bottom: 1px dashed #9a9a9a; }
+      .receipt-meta div, .receipt-summary div { display: flex; justify-content: space-between; gap: 3mm; }
+      .receipt-meta dd, .receipt-summary dd { margin: 0; text-align: right; font-weight: 700; }
+      .receipt-items { margin: 0; padding: 0 0 2.5mm; border-bottom: 1px dashed #9a9a9a; }
+      .receipt-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 7mm 15mm 18mm;
+        gap: 1.2mm;
+        align-items: start;
+        padding: 1.1mm 0;
+        border-bottom: 1px dotted #b4b4b4;
+      }
+      .receipt-item:last-child { border-bottom: 0; }
+      .receipt-item strong { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+      .receipt-item span { text-align: right; white-space: nowrap; }
+      .receipt-item-head { padding-top: 0; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+      .receipt-item-head span:first-child { text-align: left; }
+      .receipt-summary { padding-top: 0; }
+      .receipt-total { margin-top: 1mm; padding-top: 1.5mm; border-top: 1px dashed #777; font-size: 12px; font-weight: 800; }
+      .receipt-total dd { font-size: 13px; }
+      .receipt-footer { margin: 3mm 0 0; padding-top: 2.5mm; border-top: 1px dashed #9a9a9a; text-align: center; font-weight: 600; }
+      @media print {
+        html, body { width: 80mm; min-width: 80mm; margin: 0; padding: 0; }
+        .receipt { width: 80mm; max-width: 80mm; margin: 0; padding: 4mm; }
+      }
+      @media print and (max-width: 58mm) {
+        @page { size: 58mm auto; }
+        html, body, .receipt { width: 58mm; min-width: 58mm; max-width: 58mm; }
+        .receipt { padding: 3mm; }
+        .receipt-item { grid-template-columns: minmax(0, 1fr) 7mm 18mm; }
+        .receipt-unit-price { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="receipt">
+      <header class="receipt-header">
+        <strong class="store-name">${escapeReceiptHtml(storeSettings?.store_name ?? 'SN Store')}</strong>
+        <h1>Thanh toán thành công</h1>
+        <p>Đơn hàng #${escapeReceiptHtml(receipt.orderNumber)}</p>
+        <small>${escapeReceiptHtml(formatDate(datePart))} · ${escapeReceiptHtml(formatTime(timePart.substring(0, 5)))}</small>
+      </header>
+      <dl class="receipt-meta">
+        <div><dt>Mã đơn</dt><dd>#${escapeReceiptHtml(receipt.orderNumber)}</dd></div>
+        <div><dt>Thu ngân</dt><dd>SN POS</dd></div>
+        <div><dt>Thanh toán</dt><dd>${escapeReceiptHtml(paymentLabel)}</dd></div>
+      </dl>
+      <section class="receipt-items" aria-label="Sản phẩm đã bán">
+        <div class="receipt-item receipt-item-head"><span>Sản phẩm</span><span>SL</span><span class="receipt-unit-price">Đơn giá</span><span>Thành tiền</span></div>
+        ${receiptRows}
+      </section>
+      <dl class="receipt-summary">
+        <div><dt>Tạm tính</dt><dd>${escapeReceiptHtml(formatVnd(receipt.subtotal))}</dd></div>
+        <div><dt>Giảm giá</dt><dd>${escapeReceiptHtml(receipt.discount > 0 ? `-${formatVnd(receipt.discount)}` : '—')}</dd></div>
+        <div><dt>Thuế ${escapeReceiptHtml(taxRate)}%</dt><dd>${escapeReceiptHtml(formatVnd(receipt.tax))}</dd></div>
+        <div class="receipt-total"><dt>Tổng cộng</dt><dd>${escapeReceiptHtml(formatVnd(receipt.total))}</dd></div>
+      </dl>
+      <p class="receipt-footer">Cảm ơn quý khách và hẹn gặp lại.</p>
+    </main>
+    <script>
+      window.addEventListener('load', function () {
+        window.setTimeout(function () { window.print(); }, 50);
+      });
+      window.addEventListener('afterprint', function () {
+        window.setTimeout(function () { window.close(); }, 0);
+      });
+    </script>
+  </body>
+</html>`)
+    printWindow.document.close()
+  }
 
   const applyDiscount = () => {
     const val = discountInput.trim()
@@ -981,7 +1123,7 @@ export function PosPage() {
             </div>
             
             <footer className="receipt-actions print-hidden">
-              <button type="button" className="receipt-print-button" onClick={() => window.print()}>
+              <button type="button" className="receipt-print-button" onClick={printReceipt}>
                 In hóa đơn
               </button>
               <button type="button" className="receipt-new" onClick={() => setReceipt(null)}>

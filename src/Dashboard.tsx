@@ -51,15 +51,15 @@ function getGreeting(hour: number) {
 }
 
 function formatRevenueDay(date: string, includeDate = false) {
-  const localDate = new Date(`${date}T00:00:00`)
-  const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' })
+  const localDate = new Date(`${date}T12:00:00+07:00`)
+  const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' })
     .format(localDate)
     .replace('.', '')
     .replace('Thứ ', 'T')
 
   if (!includeDate) return weekday
 
-  const calendarDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' }).format(localDate)
+  const calendarDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(localDate)
   return `${weekday}, ${calendarDate}`
 }
 
@@ -72,16 +72,40 @@ export function Dashboard() {
 
   useEffect(() => {
     let active = true
-    Promise.all([
-      DashboardService.getDashboardData(),
-      SettingsService.getSettings().catch(() => null),
-    ])
-      .then(([dashboardData, storeSettings]) => {
+    let refreshing = false
+
+    const loadDashboard = async () => {
+      if (refreshing) return
+      refreshing = true
+
+      try {
+        const [dashboardData, storeSettings] = await Promise.all([
+          DashboardService.getDashboardData(),
+          SettingsService.getSettings().catch(() => null),
+        ])
         if (!active) return
         setData(dashboardData)
         setSettings(storeSettings)
-      })
-      .catch(setError)
+        setActiveRevenueDay(null)
+        setError(null)
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError : new Error('Không thể tải bảng điều khiển'))
+      } finally {
+        refreshing = false
+      }
+    }
+
+    const refreshOnFocus = () => {
+      setNow(new Date())
+      void loadDashboard()
+    }
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') refreshOnFocus()
+    }
+
+    void loadDashboard()
+    window.addEventListener('focus', refreshOnFocus)
+    document.addEventListener('visibilitychange', refreshOnVisibility)
 
     const timer = window.setInterval(() => {
       setNow(new Date())
@@ -90,6 +114,8 @@ export function Dashboard() {
     return () => {
       active = false
       window.clearInterval(timer)
+      window.removeEventListener('focus', refreshOnFocus)
+      document.removeEventListener('visibilitychange', refreshOnVisibility)
     }
   }, [])
 
@@ -101,16 +127,14 @@ export function Dashboard() {
   const greeting = getGreeting(greetingHour)
   const storeName = settings?.store_name?.trim() || 'SN Store'
   const chartWidth = 420
-  const chartHeight = 154
-  const plotTop = 10
-  const plotBottom = 132
-  const chartMax = Math.max(...revenueDays.map((day) => day.revenue), 1)
+  const chartHeight = 192
+  const plotTop = 8
+  const plotBottom = 174
   const highestRevenue = Math.max(...revenueDays.map((day) => day.revenue))
-  const averageRevenue = todaySummary.weekRevenue / revenueDays.length
+  const chartMax = highestRevenue > 0 ? highestRevenue * 1.15 : 1
   const step = chartWidth / revenueDays.length
   const barWidth = Math.min(30, step * 0.48)
   const revenueToY = (revenue: number) => plotBottom - (revenue / chartMax) * (plotBottom - plotTop)
-  const averageY = revenueToY(averageRevenue)
   const allDaysEmpty = todaySummary.weekRevenue === 0
   const activeDay = activeRevenueDay === null ? null : revenueDays[activeRevenueDay]
 
@@ -161,13 +185,13 @@ export function Dashboard() {
               <span className="revenue-live"><i aria-hidden="true" /> Trực tiếp</span>
             </div>
           </header>
-          <div className="chart-wrap revenue-chart-wrap">
-            <div className="chart-scale" aria-hidden="true">
+          <div className="revenue-chart-wrap">
+            <div className="revenue-chart-scale" aria-hidden="true">
               <span>{formatVnd(chartMax)}</span>
               <span>{formatVnd(chartMax / 2)}</span>
               <span>{formatVnd(0)}</span>
             </div>
-            <div className="chart-plot revenue-chart-plot">
+            <div className="revenue-chart-plot">
               <svg
                 className="revenue-chart"
                 viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -178,11 +202,10 @@ export function Dashboard() {
                 {[plotTop, (plotTop + plotBottom) / 2, plotBottom].map((y) => (
                   <line key={y} className="revenue-grid-line" x1="0" x2={chartWidth} y1={y} y2={y} />
                 ))}
-                {!allDaysEmpty && <line className="revenue-average-line" x1="0" x2={chartWidth} y1={averageY} y2={averageY} />}
                 {revenueDays.map((day, index) => {
                   const x = index * step + (step - barWidth) / 2
-                  const barHeight = day.revenue ? Math.max(4, plotBottom - revenueToY(day.revenue)) : 3
-                  const y = day.revenue ? revenueToY(day.revenue) : plotBottom - barHeight
+                  const barHeight = day.revenue ? Math.max(4, plotBottom - revenueToY(day.revenue)) : 0
+                  const y = day.revenue ? revenueToY(day.revenue) : plotBottom
                   const isHighest = day.revenue > 0 && day.revenue === highestRevenue
 
                   return (
@@ -199,12 +222,12 @@ export function Dashboard() {
                       onClick={() => setActiveRevenueDay((current) => current === index ? null : index)}
                     >
                       <rect className="revenue-bar-hitarea" x={index * step} y="0" width={step} height={plotBottom} />
-                      <rect className="revenue-bar" x={x} y={y} width={barWidth} height={barHeight} rx="5" ry="5" />
+                      {barHeight > 0 && <rect className="revenue-bar" x={x} y={y} width={barWidth} height={barHeight} rx="5" ry="5" />}
                     </g>
                   )
                 })}
               </svg>
-              <div className="chart-labels revenue-chart-labels" aria-hidden="true">
+              <div className="revenue-chart-labels" aria-hidden="true">
                 {revenueDays.map((day) => <span key={day.date}>{formatRevenueDay(day.date)}</span>)}
               </div>
               {activeDay && (

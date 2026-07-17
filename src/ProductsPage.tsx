@@ -18,6 +18,7 @@ import { ConfirmationDialog, DialogSurface, OverlayBackdrop } from './components
 import { FilterSelect, FormField, FormSelect } from './components/FormControls'
 import { PageSkeleton } from './components/PageStates'
 import { ProductService, type Product, type ProductInput } from './services/ProductService'
+import { validateProductImageFile } from './services/ImageService'
 import { formatVnd } from './utils/formatters'
 import './ProductsPage.css'
 
@@ -108,6 +109,14 @@ function ProductDialog({
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    try {
+      validateProductImageFile(file)
+      setSaveError('')
+    } catch (error) {
+      event.target.value = ''
+      setSaveError(error instanceof Error ? error.message : 'Không thể sử dụng ảnh này.')
+      return
+    }
     if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview)
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
@@ -165,7 +174,7 @@ function ProductDialog({
                 </div>
                 <div className="product-image-actions">
                   <label><input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} /><ImagePlus aria-hidden="true" /> Chọn ảnh</label>
-                  <label><input type="file" accept="image/*" capture="environment" onChange={handleImageChange} /><Camera aria-hidden="true" /> Chụp ảnh</label>
+                  <label><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleImageChange} /><Camera aria-hidden="true" /> Chụp ảnh</label>
                 </div>
               </div>
               <div className="variants-section">

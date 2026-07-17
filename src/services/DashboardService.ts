@@ -20,25 +20,48 @@ const paymentLabels: Record<string, string> = {
   bank_transfer_qr: 'Chuyển khoản / QR',
 }
 
-const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
-const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
-const dayKey = (date: Date) => date.toISOString().slice(0, 10)
+const businessTimeZone = 'Asia/Ho_Chi_Minh'
+
+const businessDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: businessTimeZone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const dayKey = (date: Date) => {
+  const parts = businessDayFormatter.formatToParts(date)
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}`
+}
+
+const addDaysToKey = (key: string, days: number) => {
+  const [year, month, day] = key.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+const startOfBusinessDay = (key: string) => new Date(`${key}T00:00:00+07:00`)
 
 export const DashboardService = {
   async getDashboardData() {
     try {
-      const todayStart = startOfLocalDay(new Date())
-      const tomorrowStart = addDays(todayStart, 1)
-      const weekStart = addDays(todayStart, -6)
-      const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1)
+      const todayKey = dayKey(new Date())
+      const weekStartKey = addDaysToKey(todayKey, -6)
+      const tomorrowKey = addDaysToKey(todayKey, 1)
+      const monthStartKey = `${todayKey.slice(0, 8)}01`
+      const weekStart = startOfBusinessDay(weekStartKey)
+      const tomorrowStart = startOfBusinessDay(tomorrowKey)
+      const monthStart = startOfBusinessDay(monthStartKey)
 
       const [ordersResult, inventoryResult, itemsResult, customersResult] = await Promise.all([
         supabase
           .from('orders')
           .select('id, order_number, status, payment_method, total_vnd, completed_at, created_at, customers(name), order_items(quantity)')
-          .gte('created_at', weekStart.toISOString())
+          .eq('status', 'completed')
+          .gte('completed_at', weekStart.toISOString())
+          .lt('completed_at', tomorrowStart.toISOString())
           .order('completed_at', { ascending: false })
-          .limit(50),
+          .limit(1000),
         supabase
           .from('product_variants')
           .select('sku, size, color, stock_quantity, products(name)')
@@ -59,25 +82,22 @@ export const DashboardService = {
       if (itemsResult.error) handleServiceError(itemsResult.error)
       if (customersResult.error) handleServiceError(customersResult.error)
 
-      const ordersRows = (ordersResult.data as any[] ?? []).filter((order) => order.status !== 'refunded')
-      const todayOrders = ordersRows.filter((order) => {
-        const date = new Date(order.completed_at ?? order.created_at)
-        return date >= todayStart && date < tomorrowStart
-      })
-      const monthOrders = ordersRows.filter((order) => new Date(order.completed_at ?? order.created_at) >= monthStart)
-      const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total_vnd ?? 0), 0)
-      const weekRevenue = ordersRows.reduce((sum, order) => sum + (order.total_vnd ?? 0), 0)
+      const ordersRows = (ordersResult.data as any[] ?? [])
+      const todayOrders = ordersRows.filter((order) => dayKey(new Date(order.completed_at)) === todayKey)
+      const monthOrders = ordersRows.filter((order) => new Date(order.completed_at) >= monthStart)
+      const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total_vnd ?? 0), 0)
+      const weekRevenue = ordersRows.reduce((sum, order) => sum + Number(order.total_vnd ?? 0), 0)
       const monthRevenue = monthOrders.reduce((sum, order) => sum + (order.total_vnd ?? 0), 0)
       const todayItems = todayOrders.reduce((sum, order) => sum + (order.order_items ?? []).reduce((itemSum: number, item: any) => itemSum + (item.quantity ?? 0), 0), 0)
       const averageOrder = todayOrders.length ? todayRevenue / todayOrders.length : 0
 
       const revenueByDay = new Map<string, { revenue: number; orders: number }>()
-      for (let i = 0; i < 7; i += 1) revenueByDay.set(dayKey(addDays(weekStart, i)), { revenue: 0, orders: 0 })
+      for (let i = 0; i < 7; i += 1) revenueByDay.set(addDaysToKey(weekStartKey, i), { revenue: 0, orders: 0 })
       for (const order of ordersRows) {
-        const key = dayKey(new Date(order.completed_at ?? order.created_at))
+        const key = dayKey(new Date(order.completed_at))
         const current = revenueByDay.get(key)
         if (current) {
-          current.revenue += order.total_vnd ?? 0
+          current.revenue += Number(order.total_vnd ?? 0)
           current.orders += 1
         }
       }
@@ -87,7 +107,7 @@ export const DashboardService = {
         const current = paymentByMethod.get(order.payment_method) ?? { count: 0, total: 0 }
         paymentByMethod.set(order.payment_method, {
           count: current.count + 1,
-          total: current.total + (order.total_vnd ?? 0),
+          total: current.total + Number(order.total_vnd ?? 0),
         })
       }
 
